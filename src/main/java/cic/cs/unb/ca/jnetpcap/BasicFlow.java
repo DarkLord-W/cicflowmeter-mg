@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.jnetpcap.packet.format.FormatUtils;
+import cic.cs.unb.ca.TimeRuleManager;
 
 public class BasicFlow {
 
@@ -1078,14 +1079,8 @@ public class BasicFlow {
 	}
 	
 	public String getLabel() {
-		//the original is "|". I think it should be "||" need to check,
-		/*if(FormatUtils.ip(src).equals("147.32.84.165") || FormatUtils.ip(dst).equals("147.32.84.165")){
-			return "BOTNET";													
-		}
-		else{
-			return "BENIGN";
-		}*/
-        return "NeedManualLabel";
+		// 使用时间规则管理器获取标签
+		return TimeRuleManager.getInstance().getLabelForTimestamp(this.flowStartTime);
     }
 	
     public String dumpFlowBasedFeaturesEx() {

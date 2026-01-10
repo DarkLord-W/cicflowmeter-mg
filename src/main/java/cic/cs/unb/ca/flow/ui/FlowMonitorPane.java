@@ -2,6 +2,10 @@ package cic.cs.unb.ca.flow.ui;
 
 import cic.cs.unb.ca.Sys;
 import cic.cs.unb.ca.ApiConfigManager;
+import cic.cs.unb.ca.LabelConstants;
+import cic.cs.unb.ca.TimeLabelRule;
+import cic.cs.unb.ca.RuleGroup;
+import cic.cs.unb.ca.TimeRuleManager;
 import cic.cs.unb.ca.flow.FlowMgr;
 import cic.cs.unb.ca.guava.Event.FlowVisualEvent;
 import cic.cs.unb.ca.guava.GuavaMgr;
@@ -20,10 +24,16 @@ import cic.cs.unb.ca.jnetpcap.worker.InsertCsvRow;
 import swing.common.InsertTableRow;
 import swing.common.JTable2CSVWorker;
 import swing.common.TextFileFilter;
+import cic.cs.unb.ca.TimeRuleManager;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.border.TitledBorder;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.JSpinner;
+import javax.swing.SpinnerDateModel;
+import javax.swing.SpinnerNumberModel;
 import java.awt.*;
 import java.io.File;
 import java.time.LocalDate;
@@ -52,15 +62,17 @@ public class FlowMonitorPane extends JPanel {
     private JToggleButton btnStop;
     private ButtonGroup btnGroup;
 
-private JButton btnSave = new JButton();
+    private JButton btnSave = new JButton();
     private File lastSave;
     private JButton btnGraph = new JButton();
     private JButton btnConfig = new JButton();
+    private JButton btnRuleConfig = new JButton();
     private JFileChooser fileChooser;
 
     private ExecutorService csvWriterThread;
     private ExecutorService apiWriterThread;
     private JLabel lblApiStats;
+    private JLabel lblRuleStats;
 
     public FlowMonitorPane() {
         init();
@@ -75,6 +87,7 @@ private JButton btnSave = new JButton();
         csvWriterThread = Executors.newSingleThreadExecutor();
         apiWriterThread = Executors.newSingleThreadExecutor();
         ApiSendTask.resetCounters();
+        updateRuleStatsOnInit();
     }
 
     public void destory() {
@@ -183,12 +196,18 @@ private JButton btnSave = new JButton();
         btnConfig.setFocusable(false);
         btnConfig.addActionListener(actionEvent -> showApiConfigDialog());
         
+        btnRuleConfig = new JButton("时间规则设置");
+        btnRuleConfig.setFocusable(false);
+        btnRuleConfig.addActionListener(actionEvent -> showTimeRuleConfigDialog());
+        
         btnPane.add(Box.createHorizontalGlue());
         btnPane.add(btnSave);
         btnPane.add(Box.createHorizontalGlue());
         btnPane.add(btnGraph);
         btnPane.add(Box.createHorizontalGlue());
         btnPane.add(btnConfig);
+        btnPane.add(Box.createHorizontalGlue());
+        btnPane.add(btnRuleConfig);
         btnPane.add(Box.createHorizontalGlue());
 
         btnPane.setBorder(BorderFactory.createRaisedSoftBevelBorder());
@@ -198,12 +217,14 @@ private JButton btnSave = new JButton();
 
     private JPanel initStatusPane() {
         JPanel pane = new JPanel();
-        pane.setLayout(new GridLayout(1, 3, 5, 0));
+        pane.setLayout(new GridLayout(1, 4, 5, 0));
         lblStatus = new JLabel("Get ready");
         lblStatus.setForeground(SystemColor.desktop);
         lblFlowCnt = new JLabel("流量: 0");
         lblApiStats = new JLabel("API: 0/0");
         lblApiStats.setForeground(new Color(0x0066CC));
+        lblRuleStats = new JLabel("规则: 0/0启用");
+        lblRuleStats.setForeground(new Color(0x009900));
 
         JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
         statusPanel.add(lblStatus);
@@ -214,9 +235,13 @@ private JButton btnSave = new JButton();
         JPanel apiPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
         apiPanel.add(lblApiStats);
         
+        JPanel rulePanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
+        rulePanel.add(lblRuleStats);
+        
         pane.add(statusPanel);
         pane.add(flowPanel);
         pane.add(apiPanel);
+        pane.add(rulePanel);
 
         return pane;
     }
@@ -598,5 +623,532 @@ private JButton btnSave = new JButton();
     
     private void updateFlowCountOnUI(int count) {
         lblFlowCnt.setText("流量: " + count);
+    }
+    
+    /**
+     * 显示时间规则配置对话框
+     */
+    private void showTimeRuleConfigDialog() {
+        TimeRuleManager ruleManager = TimeRuleManager.getInstance();
+        
+        // 创建对话框
+        JDialog configDialog = new JDialog(
+            (Frame)SwingUtilities.getWindowAncestor(this), 
+            "时间规则配置", 
+            true
+        );
+        configDialog.setLayout(new BorderLayout(10, 10));
+        configDialog.setSize(900, 700);
+        configDialog.setLocationRelativeTo(this);
+        
+        // 主面板 - 使用GridBagLayout
+        JPanel mainPanel = new JPanel();
+        mainPanel.setLayout(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.BOTH;
+        gbc.insets = new Insets(5, 5, 5, 5);
+        
+        // 1. 规则列表表格
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.gridwidth = 2;
+        gbc.weightx = 1.0;
+        gbc.weighty = 0.6;
+        
+        String[] columnNames = {"启用", "规则名称", "开始时间", "结束时间", "标签", "优先级", "分组"};
+        DefaultTableModel tableModel = new DefaultTableModel(columnNames, 0) {
+            @Override
+            public Class<?> getColumnClass(int column) {
+                if (column == 0) return Boolean.class;
+                return String.class;
+            }
+            
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return column == 0; // 只允许编辑"启用"列
+            }
+        };
+        
+        JTable ruleTable = new JTable(tableModel);
+        ruleTable.setRowHeight(25);
+        ruleTable.getColumnModel().getColumn(0).setPreferredWidth(50);
+        ruleTable.getColumnModel().getColumn(1).setPreferredWidth(150);
+        ruleTable.getColumnModel().getColumn(2).setPreferredWidth(150);
+        ruleTable.getColumnModel().getColumn(3).setPreferredWidth(150);
+        ruleTable.getColumnModel().getColumn(4).setPreferredWidth(120);
+        ruleTable.getColumnModel().getColumn(5).setPreferredWidth(60);
+        ruleTable.getColumnModel().getColumn(6).setPreferredWidth(100);
+        
+        JScrollPane tableScrollPane = new JScrollPane(ruleTable);
+        tableScrollPane.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createEtchedBorder(), "时间规则列表", 
+            TitledBorder.LEFT, TitledBorder.TOP));
+        
+        mainPanel.add(tableScrollPane, gbc);
+        
+        // 2. 规则编辑区域
+        gbc.gridy = 1;
+        gbc.weighty = 0.3;
+        
+        JPanel editPanel = new JPanel();
+        editPanel.setLayout(new GridBagLayout());
+        editPanel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createEtchedBorder(), "规则编辑", 
+            TitledBorder.LEFT, TitledBorder.TOP));
+        
+        GridBagConstraints gbcEdit = new GridBagConstraints();
+        gbcEdit.fill = GridBagConstraints.HORIZONTAL;
+        gbcEdit.insets = new Insets(3, 5, 3, 5);
+        
+        // 规则名称
+        gbcEdit.gridx = 0;
+        gbcEdit.gridy = 0;
+        gbcEdit.weightx = 0.0;
+        editPanel.add(new JLabel("规则名称:"), gbcEdit);
+        
+        gbcEdit.gridx = 1;
+        gbcEdit.weightx = 1.0;
+        JTextField ruleNameField = new JTextField(20);
+        editPanel.add(ruleNameField, gbcEdit);
+        
+        // 开始时间
+        gbcEdit.gridx = 0;
+        gbcEdit.gridy = 1;
+        gbcEdit.weightx = 0.0;
+        editPanel.add(new JLabel("开始时间:"), gbcEdit);
+        
+        gbcEdit.gridx = 1;
+        gbcEdit.weightx = 1.0;
+        JSpinner startTimeSpinner = new JSpinner(new SpinnerDateModel());
+        JSpinner.DateEditor startEditor = new JSpinner.DateEditor(startTimeSpinner, "yyyy-MM-dd HH:mm:ss");
+        startTimeSpinner.setEditor(startEditor);
+        startTimeSpinner.setValue(new java.util.Date());
+        editPanel.add(startTimeSpinner, gbcEdit);
+        
+        // 结束时间
+        gbcEdit.gridx = 0;
+        gbcEdit.gridy = 2;
+        gbcEdit.weightx = 0.0;
+        editPanel.add(new JLabel("结束时间:"), gbcEdit);
+        
+        gbcEdit.gridx = 1;
+        gbcEdit.weightx = 1.0;
+        JSpinner endTimeSpinner = new JSpinner(new SpinnerDateModel());
+        JSpinner.DateEditor endEditor = new JSpinner.DateEditor(endTimeSpinner, "yyyy-MM-dd HH:mm:ss");
+        endTimeSpinner.setEditor(endEditor);
+        endTimeSpinner.setValue(new java.util.Date());
+        editPanel.add(endTimeSpinner, gbcEdit);
+        
+        // 标签选择
+        gbcEdit.gridx = 0;
+        gbcEdit.gridy = 3;
+        gbcEdit.weightx = 0.0;
+        editPanel.add(new JLabel("标签:"), gbcEdit);
+        
+        gbcEdit.gridx = 1;
+        gbcEdit.weightx = 1.0;
+        JComboBox<String> labelComboBox = new JComboBox<>(LabelConstants.getPredefinedLabels());
+        labelComboBox.setSelectedItem("BENIGN");
+        editPanel.add(labelComboBox, gbcEdit);
+        
+        // 优先级
+        gbcEdit.gridx = 0;
+        gbcEdit.gridy = 4;
+        gbcEdit.weightx = 0.0;
+        editPanel.add(new JLabel("优先级:"), gbcEdit);
+        
+        gbcEdit.gridx = 1;
+        gbcEdit.weightx = 1.0;
+        JSpinner prioritySpinner = new JSpinner(new SpinnerNumberModel(0, 0, 10, 1));
+        editPanel.add(prioritySpinner, gbcEdit);
+        
+        // 分组选择
+        gbcEdit.gridx = 0;
+        gbcEdit.gridy = 5;
+        gbcEdit.weightx = 0.0;
+        editPanel.add(new JLabel("分组:"), gbcEdit);
+        
+        gbcEdit.gridx = 1;
+        gbcEdit.weightx = 1.0;
+        JComboBox<String> groupComboBox = new JComboBox<>();
+        updateGroupComboBox(groupComboBox, ruleManager);
+        editPanel.add(groupComboBox, gbcEdit);
+        
+        // 启用复选框
+        gbcEdit.gridx = 0;
+        gbcEdit.gridy = 6;
+        gbcEdit.gridwidth = 2;
+        JCheckBox enabledCheck = new JCheckBox("启用规则", true);
+        editPanel.add(enabledCheck, gbcEdit);
+        
+        mainPanel.add(editPanel, gbc);
+        
+        // 3. 按钮区域
+        gbc.gridy = 2;
+        gbc.weighty = 0.1;
+        
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
+        
+        // 加载规则到表格
+        loadRulesToTable(tableModel, ruleManager);
+        
+        // 表格选择监听器
+        ruleTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                int selectedRow = ruleTable.getSelectedRow();
+                if (selectedRow >= 0) {
+                    loadRuleFromTable(selectedRow, tableModel, ruleNameField, 
+                                     startTimeSpinner, endTimeSpinner, labelComboBox,
+                                     prioritySpinner, groupComboBox, enabledCheck);
+                }
+            }
+        });
+        
+        // 添加规则按钮
+        JButton addButton = new JButton("添加规则");
+        addButton.addActionListener(e -> {
+            if (validateAndAddRule(ruleNameField, startTimeSpinner, endTimeSpinner,
+                                  labelComboBox, prioritySpinner, groupComboBox,
+                                  enabledCheck, ruleManager)) {
+                loadRulesToTable(tableModel, ruleManager);
+                clearEditFields(ruleNameField, startTimeSpinner, endTimeSpinner,
+                              labelComboBox, prioritySpinner, groupComboBox, enabledCheck);
+                updateRuleStats();
+            }
+        });
+        
+        // 更新规则按钮
+        JButton updateButton = new JButton("更新规则");
+        updateButton.addActionListener(e -> {
+            int selectedRow = ruleTable.getSelectedRow();
+            if (selectedRow >= 0) {
+                String ruleId = (String) tableModel.getValueAt(selectedRow, 7); // 隐藏的ruleId列
+                if (validateAndUpdateRule(ruleId, ruleNameField, startTimeSpinner, endTimeSpinner,
+                                         labelComboBox, prioritySpinner, groupComboBox,
+                                         enabledCheck, ruleManager)) {
+                    loadRulesToTable(tableModel, ruleManager);
+                    updateRuleStats();
+                }
+            } else {
+                JOptionPane.showMessageDialog(configDialog, "请先选择要更新的规则", "警告", JOptionPane.WARNING_MESSAGE);
+            }
+        });
+        
+        // 删除规则按钮
+        JButton deleteButton = new JButton("删除规则");
+        deleteButton.addActionListener(e -> {
+            int selectedRow = ruleTable.getSelectedRow();
+            if (selectedRow >= 0) {
+                String ruleId = (String) tableModel.getValueAt(selectedRow, 7); // 隐藏的ruleId列
+                int confirm = JOptionPane.showConfirmDialog(configDialog, 
+                    "确定要删除这条规则吗？", "确认删除", JOptionPane.YES_NO_OPTION);
+                if (confirm == JOptionPane.YES_OPTION) {
+                    if (ruleManager.removeRule(ruleId)) {
+                        loadRulesToTable(tableModel, ruleManager);
+                        updateRuleStats();
+                        clearEditFields(ruleNameField, startTimeSpinner, endTimeSpinner,
+                                      labelComboBox, prioritySpinner, groupComboBox, enabledCheck);
+                    }
+                }
+            } else {
+                JOptionPane.showMessageDialog(configDialog, "请先选择要删除的规则", "警告", JOptionPane.WARNING_MESSAGE);
+            }
+        });
+        
+        // 分组管理按钮
+        JButton groupButton = new JButton("分组管理");
+        groupButton.addActionListener(e -> showGroupManagementDialog(ruleManager, groupComboBox));
+        
+        // 导入/导出按钮
+        JButton importButton = new JButton("导入");
+        importButton.addActionListener(e -> importRules(ruleManager, tableModel));
+        
+        JButton exportButton = new JButton("导出");
+        exportButton.addActionListener(e -> exportRules(ruleManager));
+        
+        // 关闭按钮
+        JButton closeButton = new JButton("关闭");
+        closeButton.addActionListener(e -> configDialog.dispose());
+        
+        buttonPanel.add(addButton);
+        buttonPanel.add(updateButton);
+        buttonPanel.add(deleteButton);
+        buttonPanel.add(groupButton);
+        buttonPanel.add(importButton);
+        buttonPanel.add(exportButton);
+        buttonPanel.add(closeButton);
+        
+        mainPanel.add(buttonPanel, gbc);
+        
+        // 添加主面板到对话框
+        configDialog.add(mainPanel, BorderLayout.CENTER);
+        
+        // 状态标签
+        JLabel statusLabel = new JLabel(ruleManager.getStatusString());
+        statusLabel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+        configDialog.add(statusLabel, BorderLayout.SOUTH);
+        
+        configDialog.setVisible(true);
+        
+        // 更新规则状态显示
+        updateRuleStats();
+    }
+    
+    /**
+     * 更新规则状态显示
+     */
+    private void updateRuleStats() {
+        if (lblRuleStats == null) {
+            return; // UI not initialized yet
+        }
+        TimeRuleManager manager = TimeRuleManager.getInstance();
+        lblRuleStats.setText(String.format("规则: %d/%d启用",
+            manager.getEnabledRuleCount(),
+            manager.getTotalRuleCount()));
+    }
+    
+    /**
+     * 初始化时更新规则状态
+     */
+    public void updateRuleStatsOnInit() {
+        updateRuleStats();
+    }
+    
+    // ==================== 时间规则对话框辅助方法 ====================
+    
+    /**
+     * 加载规则到表格
+     */
+    private void loadRulesToTable(DefaultTableModel tableModel, TimeRuleManager ruleManager) {
+        tableModel.setRowCount(0); // 清空表格
+        
+        // 添加隐藏的ruleId列数据
+        for (TimeLabelRule rule : ruleManager.getAllRules()) {
+            Object[] rowData = {
+                rule.isEnabled(),
+                rule.getRuleName(),
+                rule.getFormattedStartTime(),
+                rule.getFormattedEndTime(),
+                rule.getLabel(),
+                String.valueOf(rule.getPriority()),
+                rule.getGroupId(),
+                rule.getRuleId() // 隐藏的ruleId，第7列
+            };
+            tableModel.addRow(rowData);
+        }
+    }
+    
+    /**
+     * 从表格加载规则到编辑字段
+     */
+    private void loadRuleFromTable(int row, DefaultTableModel tableModel,
+                                  JTextField ruleNameField, JSpinner startTimeSpinner,
+                                  JSpinner endTimeSpinner, JComboBox<String> labelComboBox,
+                                  JSpinner prioritySpinner, JComboBox<String> groupComboBox,
+                                  JCheckBox enabledCheck) {
+        try {
+            ruleNameField.setText((String) tableModel.getValueAt(row, 1));
+            
+            // 解析时间字符串
+            String startTimeStr = (String) tableModel.getValueAt(row, 2);
+            String endTimeStr = (String) tableModel.getValueAt(row, 3);
+            
+            java.text.SimpleDateFormat format = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            startTimeSpinner.setValue(format.parse(startTimeStr));
+            endTimeSpinner.setValue(format.parse(endTimeStr));
+            
+            labelComboBox.setSelectedItem((String) tableModel.getValueAt(row, 4));
+            prioritySpinner.setValue(Integer.parseInt((String) tableModel.getValueAt(row, 5)));
+            groupComboBox.setSelectedItem((String) tableModel.getValueAt(row, 6));
+            enabledCheck.setSelected((Boolean) tableModel.getValueAt(row, 0));
+            
+        } catch (Exception e) {
+            logger.error("加载规则数据失败", e);
+            JOptionPane.showMessageDialog(null, "加载规则数据失败: " + e.getMessage(), 
+                "错误", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+    
+    /**
+     * 验证并添加规则
+     */
+    private boolean validateAndAddRule(JTextField ruleNameField, JSpinner startTimeSpinner,
+                                      JSpinner endTimeSpinner, JComboBox<String> labelComboBox,
+                                      JSpinner prioritySpinner, JComboBox<String> groupComboBox,
+                                      JCheckBox enabledCheck, TimeRuleManager ruleManager) {
+        try {
+            // 获取字段值
+            String ruleName = ruleNameField.getText().trim();
+            if (ruleName.isEmpty()) {
+                JOptionPane.showMessageDialog(null, "规则名称不能为空", "验证错误", JOptionPane.ERROR_MESSAGE);
+                return false;
+            }
+            
+            java.util.Date startDate = (java.util.Date) startTimeSpinner.getValue();
+            java.util.Date endDate = (java.util.Date) endTimeSpinner.getValue();
+            
+            if (!endDate.after(startDate)) {
+                JOptionPane.showMessageDialog(null, "结束时间必须晚于开始时间", "验证错误", JOptionPane.ERROR_MESSAGE);
+                return false;
+            }
+            
+            String label = (String) labelComboBox.getSelectedItem();
+            int priority = (Integer) prioritySpinner.getValue();
+            String groupId = (String) groupComboBox.getSelectedItem();
+            boolean enabled = enabledCheck.isSelected();
+            
+            // 转换为LocalDateTime
+            java.time.LocalDateTime startDateTime = startDate.toInstant()
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalDateTime();
+            java.time.LocalDateTime endDateTime = endDate.toInstant()
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalDateTime();
+            
+            // 创建规则对象
+            TimeLabelRule rule = new TimeLabelRule(ruleName, startDateTime, endDateTime, 
+                                                 label, groupId, enabled, priority);
+            
+            // 添加规则
+            if (ruleManager.addRule(rule)) {
+                JOptionPane.showMessageDialog(null, "规则添加成功", "成功", JOptionPane.INFORMATION_MESSAGE);
+                return true;
+            } else {
+                JOptionPane.showMessageDialog(null, "规则添加失败，请检查规则是否已存在", "错误", JOptionPane.ERROR_MESSAGE);
+                return false;
+            }
+            
+        } catch (Exception e) {
+            logger.error("添加规则失败", e);
+            JOptionPane.showMessageDialog(null, "添加规则失败: " + e.getMessage(), 
+                "错误", JOptionPane.ERROR_MESSAGE);
+            return false;
+        }
+    }
+    
+    /**
+     * 验证并更新规则
+     */
+    private boolean validateAndUpdateRule(String ruleId, JTextField ruleNameField, 
+                                         JSpinner startTimeSpinner, JSpinner endTimeSpinner,
+                                         JComboBox<String> labelComboBox, JSpinner prioritySpinner,
+                                         JComboBox<String> groupComboBox, JCheckBox enabledCheck,
+                                         TimeRuleManager ruleManager) {
+        try {
+            // 获取字段值
+            String ruleName = ruleNameField.getText().trim();
+            if (ruleName.isEmpty()) {
+                JOptionPane.showMessageDialog(null, "规则名称不能为空", "验证错误", JOptionPane.ERROR_MESSAGE);
+                return false;
+            }
+            
+            java.util.Date startDate = (java.util.Date) startTimeSpinner.getValue();
+            java.util.Date endDate = (java.util.Date) endTimeSpinner.getValue();
+            
+            if (!endDate.after(startDate)) {
+                JOptionPane.showMessageDialog(null, "结束时间必须晚于开始时间", "验证错误", JOptionPane.ERROR_MESSAGE);
+                return false;
+            }
+            
+            String label = (String) labelComboBox.getSelectedItem();
+            int priority = (Integer) prioritySpinner.getValue();
+            String groupId = (String) groupComboBox.getSelectedItem();
+            boolean enabled = enabledCheck.isSelected();
+            
+            // 转换为LocalDateTime
+            java.time.LocalDateTime startDateTime = startDate.toInstant()
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalDateTime();
+            java.time.LocalDateTime endDateTime = endDate.toInstant()
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalDateTime();
+            
+            // 创建更新后的规则对象
+            TimeLabelRule updatedRule = new TimeLabelRule(ruleName, startDateTime, endDateTime, 
+                                                        label, groupId, enabled, priority);
+            updatedRule.setRuleId(ruleId); // 保持相同的ruleId
+            
+            // 更新规则
+            if (ruleManager.updateRule(updatedRule)) {
+                JOptionPane.showMessageDialog(null, "规则更新成功", "成功", JOptionPane.INFORMATION_MESSAGE);
+                return true;
+            } else {
+                JOptionPane.showMessageDialog(null, "规则更新失败，规则可能不存在", "错误", JOptionPane.ERROR_MESSAGE);
+                return false;
+            }
+            
+        } catch (Exception e) {
+            logger.error("更新规则失败", e);
+            JOptionPane.showMessageDialog(null, "更新规则失败: " + e.getMessage(), 
+                "错误", JOptionPane.ERROR_MESSAGE);
+            return false;
+        }
+    }
+    
+    /**
+     * 清空编辑字段
+     */
+    private void clearEditFields(JTextField ruleNameField, JSpinner startTimeSpinner,
+                                JSpinner endTimeSpinner, JComboBox<String> labelComboBox,
+                                JSpinner prioritySpinner, JComboBox<String> groupComboBox,
+                                JCheckBox enabledCheck) {
+        ruleNameField.setText("");
+        startTimeSpinner.setValue(new java.util.Date());
+        endTimeSpinner.setValue(new java.util.Date());
+        labelComboBox.setSelectedItem("BENIGN");
+        prioritySpinner.setValue(0);
+        groupComboBox.setSelectedIndex(0);
+        enabledCheck.setSelected(true);
+    }
+    
+    /**
+     * 更新分组下拉框
+     */
+    private void updateGroupComboBox(JComboBox<String> groupComboBox, TimeRuleManager ruleManager) {
+        groupComboBox.removeAllItems();
+        for (RuleGroup group : ruleManager.getAllGroups()) {
+            groupComboBox.addItem(group.getGroupId());
+        }
+    }
+    
+    /**
+     * 显示分组管理对话框
+     */
+    private void showGroupManagementDialog(TimeRuleManager ruleManager, JComboBox<String> groupComboBox) {
+        // 简化版本：显示分组列表
+        StringBuilder groupsInfo = new StringBuilder();
+        groupsInfo.append("当前分组列表:\n\n");
+        
+        for (RuleGroup group : ruleManager.getAllGroups()) {
+            groupsInfo.append(String.format("- %s (%s): %s\n", 
+                group.getGroupName(), group.getGroupId(),
+                group.isEnabled() ? "启用" : "禁用"));
+        }
+        
+        JOptionPane.showMessageDialog(null, groupsInfo.toString(), 
+            "分组管理", JOptionPane.INFORMATION_MESSAGE);
+    }
+    
+    /**
+     * 导入规则
+     */
+    private void importRules(TimeRuleManager ruleManager, DefaultTableModel tableModel) {
+        JOptionPane.showMessageDialog(null, "导入功能开发中...", "导入", JOptionPane.INFORMATION_MESSAGE);
+    }
+    
+    /**
+     * 导出规则
+     */
+    private void exportRules(TimeRuleManager ruleManager) {
+        String json = ruleManager.exportRulesToJson();
+        
+        JTextArea textArea = new JTextArea(json, 20, 60);
+        textArea.setEditable(false);
+        textArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        
+        JOptionPane.showMessageDialog(null, scrollPane, "规则导出 (JSON格式)", 
+            JOptionPane.INFORMATION_MESSAGE);
     }
 }
