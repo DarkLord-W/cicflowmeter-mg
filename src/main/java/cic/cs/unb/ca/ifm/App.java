@@ -1,5 +1,6 @@
 package cic.cs.unb.ca.ifm;
 
+import cic.cs.unb.ca.ApiConfigManager;
 import cic.cs.unb.ca.flow.FlowMgr;
 import cic.cs.unb.ca.guava.GuavaMgr;
 import cic.cs.unb.ca.ifm.ui.MainFrame;
@@ -12,6 +13,13 @@ public class App {
 	public static void init() {
 		FlowMgr.getInstance().init();
 		GuavaMgr.getInstance().init();
+		
+		// 初始化API配置管理器，打印默认配置状态
+		ApiConfigManager config = ApiConfigManager.getInstance();
+		logger.info("API配置初始化完成");
+		logger.info("默认API URL: {}", config.getApiUrl());
+		logger.info("API启用状态: {}", config.isApiEnabled() ? "已启用" : "已禁用");
+		logger.info("CSV启用状态: {}", config.isCsvEnabled() ? "已启用" : "已禁用");
 	}
 	
 	/**

@@ -15,8 +15,10 @@ public class FlowMgr {
 
     private static FlowMgr Instance = new FlowMgr();
 
-    private String mFlowSavePath;
+private String mFlowSavePath;
     private String mDataPath;
+    private String mCustomCsvSavePath;
+    private boolean mUseCustomPath = false;
 
     private FlowMgr() {
         super();
@@ -43,9 +45,35 @@ public class FlowMgr {
     public void destroy() {
     }
 
-	public String getSavePath() {
+public String getSavePath() {
+        if (mUseCustomPath && mCustomCsvSavePath != null && !mCustomCsvSavePath.isEmpty()) {
+            return mCustomCsvSavePath;
+        }
 		return mFlowSavePath;
 	}
+
+    public void setCustomSavePath(String customPath) {
+        if (customPath != null && !customPath.trim().isEmpty()) {
+            mCustomCsvSavePath = customPath.trim();
+            if (!mCustomCsvSavePath.endsWith(Sys.FILE_SEP)) {
+                mCustomCsvSavePath += Sys.FILE_SEP;
+            }
+            mUseCustomPath = true;
+            logger.info("CSV保存路径设置为: {}", mCustomCsvSavePath);
+        } else {
+            mUseCustomPath = false;
+            logger.info("使用默认CSV保存路径: {}", mFlowSavePath);
+        }
+    }
+
+    public void setDefaultSavePath() {
+        mUseCustomPath = false;
+        logger.info("恢复默认CSV保存路径: {}", mFlowSavePath);
+    }
+
+    public String getCurrentSavePath() {
+        return mUseCustomPath ? mCustomCsvSavePath : mFlowSavePath;
+    }
 
     public String getmDataPath() {
         return mDataPath;

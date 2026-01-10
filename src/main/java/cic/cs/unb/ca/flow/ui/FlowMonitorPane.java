@@ -1,11 +1,13 @@
 package cic.cs.unb.ca.flow.ui;
 
 import cic.cs.unb.ca.Sys;
+import cic.cs.unb.ca.ApiConfigManager;
 import cic.cs.unb.ca.flow.FlowMgr;
 import cic.cs.unb.ca.guava.Event.FlowVisualEvent;
 import cic.cs.unb.ca.guava.GuavaMgr;
 import cic.cs.unb.ca.jnetpcap.BasicFlow;
 import cic.cs.unb.ca.jnetpcap.FlowFeature;
+import cic.cs.unb.ca.jnetpcap.worker.ApiSendTask;
 import cic.cs.unb.ca.jnetpcap.PcapIfWrapper;
 import cic.cs.unb.ca.jnetpcap.worker.LoadPcapInterfaceWorker;
 import cic.cs.unb.ca.jnetpcap.worker.TrafficFlowWorker;
@@ -50,13 +52,15 @@ public class FlowMonitorPane extends JPanel {
     private JToggleButton btnStop;
     private ButtonGroup btnGroup;
 
-    private JButton btnSave = new JButton();
+private JButton btnSave = new JButton();
     private File lastSave;
     private JButton btnGraph = new JButton();
+    private JButton btnConfig = new JButton();
     private JFileChooser fileChooser;
 
     private ExecutorService csvWriterThread;
-
+    private ExecutorService apiWriterThread;
+    private JLabel lblApiStats;
 
     public FlowMonitorPane() {
         init();
@@ -69,10 +73,13 @@ public class FlowMonitorPane extends JPanel {
 
     private void init() {
         csvWriterThread = Executors.newSingleThreadExecutor();
+        apiWriterThread = Executors.newSingleThreadExecutor();
+        ApiSendTask.resetCounters();
     }
 
     public void destory() {
         csvWriterThread.shutdown();
+        apiWriterThread.shutdown();
     }
 
     private JPanel initCenterPane(){
@@ -94,7 +101,7 @@ public class FlowMonitorPane extends JPanel {
         pane.setLayout(new BorderLayout(0, 5));
         pane.setBorder(BorderFactory.createLineBorder(new Color(0x555555)));
 
-        //pane.add(initTableBtnPane(), BorderLayout.NORTH);
+        pane.add(initTableBtnPane(), BorderLayout.NORTH);
         pane.add(initTablePane(), BorderLayout.CENTER);
         pane.add(initStatusPane(), BorderLayout.SOUTH);
 
@@ -130,7 +137,9 @@ public class FlowMonitorPane extends JPanel {
         btnGraph.setFocusable(false);
         btnGraph.setEnabled(false);
 
-        fileChooser = new JFileChooser(new File(FlowMgr.getInstance().getmDataPath()));
+        String dataPath = FlowMgr.getInstance().getmDataPath();
+        File initialDir = (dataPath != null) ? new File(dataPath) : new File(System.getProperty("user.dir"));
+        fileChooser = new JFileChooser(initialDir);
         TextFileFilter csvChooserFilter = new TextFileFilter("csv file (*.csv)", new String[]{"csv"});
         fileChooser.setFileFilter(csvChooserFilter);
 
@@ -170,10 +179,16 @@ public class FlowMonitorPane extends JPanel {
 
         btnGraph.addActionListener(actionEvent -> GuavaMgr.getInstance().getEventBus().post(new FlowVisualEvent(lastSave)));
 
+        btnConfig = new JButton("API设置");
+        btnConfig.setFocusable(false);
+        btnConfig.addActionListener(actionEvent -> showApiConfigDialog());
+        
         btnPane.add(Box.createHorizontalGlue());
         btnPane.add(btnSave);
         btnPane.add(Box.createHorizontalGlue());
         btnPane.add(btnGraph);
+        btnPane.add(Box.createHorizontalGlue());
+        btnPane.add(btnConfig);
         btnPane.add(Box.createHorizontalGlue());
 
         btnPane.setBorder(BorderFactory.createRaisedSoftBevelBorder());
@@ -183,16 +198,25 @@ public class FlowMonitorPane extends JPanel {
 
     private JPanel initStatusPane() {
         JPanel pane = new JPanel();
-        pane.setLayout(new BoxLayout(pane, BoxLayout.X_AXIS));
+        pane.setLayout(new GridLayout(1, 3, 5, 0));
         lblStatus = new JLabel("Get ready");
         lblStatus.setForeground(SystemColor.desktop);
-        lblFlowCnt = new JLabel("0");
+        lblFlowCnt = new JLabel("流量: 0");
+        lblApiStats = new JLabel("API: 0/0");
+        lblApiStats.setForeground(new Color(0x0066CC));
 
-        pane.add(Box.createHorizontalStrut(5));
-        pane.add(lblStatus);
-        pane.add(Box.createHorizontalGlue());
-        pane.add(lblFlowCnt);
-        pane.add(Box.createHorizontalStrut(5));
+        JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        statusPanel.add(lblStatus);
+        
+        JPanel flowPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 0));
+        flowPanel.add(lblFlowCnt);
+        
+        JPanel apiPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
+        apiPanel.add(lblApiStats);
+        
+        pane.add(statusPanel);
+        pane.add(flowPanel);
+        pane.add(apiPanel);
 
         return pane;
     }
@@ -354,9 +378,25 @@ public class FlowMonitorPane extends JPanel {
         logger.info("path:{}", path);
 
         if(defaultTableModel.getRowCount()>0 && new File(path).exists()) {
-            StringBuilder msg = new StringBuilder("The flow has been saved to :");
-            msg.append(Sys.LINE_SEP);
-            msg.append(path);
+            StringBuilder msg = new StringBuilder("数据导出完成");
+            msg.append(Sys.LINE_SEP).append(Sys.LINE_SEP);
+            msg.append("CSV文件: ").append(path);
+            
+            // 添加API统计信息
+            int apiSent = ApiSendTask.getTotalSent();
+            int apiFailed = ApiSendTask.getTotalFailed();
+            int apiTotal = apiSent + apiFailed;
+            
+            if (ApiConfigManager.getInstance().isApiEnabled() && apiTotal > 0) {
+                msg.append(Sys.LINE_SEP).append(Sys.LINE_SEP);
+                msg.append("API发送统计:");
+                msg.append(Sys.LINE_SEP);
+                msg.append("- 发送成功: ").append(apiSent);
+                msg.append(Sys.LINE_SEP);
+                msg.append("- 发送失败: ").append(apiFailed);
+                msg.append(Sys.LINE_SEP);
+                msg.append("- 成功率: ").append(apiTotal > 0 ? String.format("%.1f%%", (apiSent * 100.0 / apiTotal)) : "0%");
+            }
 
             UIManager.put("OptionPane.minimumSize",new Dimension(0, 0));
             JOptionPane.showMessageDialog(this.getParent(),msg.toString());
@@ -370,14 +410,193 @@ public class FlowMonitorPane extends JPanel {
         flowStringList.add(flowDump);
         flowDataList.add(StringUtils.split(flowDump, ","));
 
-        //write flows to csv file
         String header  = FlowFeature.getHeader();
-        String path = FlowMgr.getInstance().getSavePath();
-        String filename = LocalDate.now().toString() + FlowMgr.FLOW_SUFFIX;
-        csvWriterThread.execute(new InsertCsvRow(header, flowStringList, path, filename));
+        ApiConfigManager config = ApiConfigManager.getInstance();
+        
+        // CSV导出
+        if (config.isCsvEnabled()) {
+            String path = FlowMgr.getInstance().getSavePath();
+            String filename = LocalDate.now().toString() + FlowMgr.FLOW_SUFFIX;
+            csvWriterThread.execute(new InsertCsvRow(header, flowStringList, path, filename));
+        }
+        
+        // API发送
+        if (config.isApiEnabled() && config.getApiUrl() != null && !config.getApiUrl().trim().isEmpty()) {
+            apiWriterThread.execute(new ApiSendTask(
+                config.getApiUrl(), 
+                flowDump, 
+                header,
+                true
+            ));
+        }
 
         //insert flows to JTable
         SwingUtilities.invokeLater(new InsertTableRow(defaultTableModel,flowDataList,lblFlowCnt));
         btnSave.setEnabled(true);
+        
+        // 更新API统计信息
+        if (SwingUtilities.isEventDispatchThread()) {
+            updateApiStats();
+        } else {
+            SwingUtilities.invokeLater(this::updateApiStats);
+        }
+    }
+    
+    private void updateApiStats() {
+        int sent = ApiSendTask.getTotalSent();
+        int failed = ApiSendTask.getTotalFailed();
+        if (sent > 0 || failed > 0) {
+            lblApiStats.setText(String.format("API: %d/%d ✓", sent, sent + failed));
+        } else {
+            lblApiStats.setText("API: 未启用");
+        }
+    }
+    
+    private void showApiConfigDialog() {
+        JDialog configDialog = new JDialog((Frame)SwingUtilities.getWindowAncestor(this), "API和CSV配置", true);
+        configDialog.setLayout(new BorderLayout());
+        configDialog.setSize(500, 350);
+        configDialog.setLocationRelativeTo(this);
+        
+        JPanel mainPanel = new JPanel();
+        mainPanel.setLayout(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(5, 5, 5, 5);
+        
+        // API配置部分
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.gridwidth = 2;
+        JLabel apiTitle = new JLabel("API配置");
+        apiTitle.setFont(apiTitle.getFont().deriveFont(Font.BOLD, 14f));
+        mainPanel.add(apiTitle, gbc);
+        
+        gbc.gridwidth = 1;
+        gbc.gridy = 1;
+        gbc.gridx = 0;
+        mainPanel.add(new JLabel("API URL:"), gbc);
+        
+        JTextField apiUrlField = new JTextField(ApiConfigManager.getInstance().getApiUrl(), 30);
+        gbc.gridx = 1;
+        gbc.gridwidth = 2;
+        mainPanel.add(apiUrlField, gbc);
+        
+        JCheckBox apiEnabledCheck = new JCheckBox("启用API发送");
+        apiEnabledCheck.setSelected(ApiConfigManager.getInstance().isApiEnabled());
+        gbc.gridy = 2;
+        gbc.gridx = 0;
+        gbc.gridwidth = 3;
+        mainPanel.add(apiEnabledCheck, gbc);
+        
+        // CSV配置部分
+        gbc.gridy = 3;
+        gbc.gridx = 0;
+        gbc.gridwidth = 2;
+        JLabel csvTitle = new JLabel("CSV导出配置");
+        csvTitle.setFont(csvTitle.getFont().deriveFont(Font.BOLD, 14f));
+        mainPanel.add(csvTitle, gbc);
+        
+        gbc.gridwidth = 1;
+        gbc.gridy = 4;
+        gbc.gridx = 0;
+        mainPanel.add(new JLabel("CSV保存路径:"), gbc);
+        
+        String customPath = ApiConfigManager.getInstance().getCsvSavePath();
+        JTextField csvPathField = new JTextField(customPath != null ? customPath : "", 25);
+        gbc.gridx = 1;
+        mainPanel.add(csvPathField, gbc);
+        
+        JButton browseBtn = new JButton("浏览...");
+        browseBtn.addActionListener(e -> {
+            JFileChooser chooser = new JFileChooser();
+            chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+            chooser.setDialogTitle("选择CSV保存目录");
+            String currentPath = csvPathField.getText().trim();
+            if (!currentPath.isEmpty()) {
+                chooser.setCurrentDirectory(new File(currentPath));
+            }
+            if (chooser.showOpenDialog(configDialog) == JFileChooser.APPROVE_OPTION) {
+                csvPathField.setText(chooser.getSelectedFile().getAbsolutePath());
+            }
+        });
+        gbc.gridx = 2;
+        gbc.fill = GridBagConstraints.NONE;
+        mainPanel.add(browseBtn, gbc);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        
+        JCheckBox csvEnabledCheck = new JCheckBox("启用CSV导出");
+        csvEnabledCheck.setSelected(ApiConfigManager.getInstance().isCsvEnabled());
+        gbc.gridy = 5;
+        gbc.gridx = 0;
+        gbc.gridwidth = 3;
+        mainPanel.add(csvEnabledCheck, gbc);
+        
+        JCheckBox useDefaultCsvPath = new JCheckBox("使用默认路径");
+        useDefaultCsvPath.setSelected(customPath == null || customPath.isEmpty());
+        useDefaultCsvPath.addActionListener(e -> {
+            csvPathField.setEnabled(!useDefaultCsvPath.isSelected());
+            browseBtn.setEnabled(!useDefaultCsvPath.isSelected());
+        });
+        gbc.gridy = 6;
+        mainPanel.add(useDefaultCsvPath, gbc);
+        
+        // 按钮面板
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+        JButton saveBtn = new JButton("保存");
+        saveBtn.addActionListener(e -> {
+            // 保存API配置
+            ApiConfigManager.getInstance().setApiUrl(apiUrlField.getText().trim());
+            ApiConfigManager.getInstance().setApiEnabled(apiEnabledCheck.isSelected());
+            
+            // 保存CSV配置
+            ApiConfigManager.getInstance().setCsvEnabled(csvEnabledCheck.isSelected());
+            if (!useDefaultCsvPath.isSelected() && !csvPathField.getText().trim().isEmpty()) {
+                ApiConfigManager.getInstance().setCsvSavePath(csvPathField.getText().trim());
+                FlowMgr.getInstance().setCustomSavePath(csvPathField.getText().trim());
+            } else {
+                ApiConfigManager.getInstance().setCsvSavePath(null);
+                FlowMgr.getInstance().setDefaultSavePath();
+            }
+            
+            updateApiStats();
+            configDialog.dispose();
+            
+            JOptionPane.showMessageDialog(configDialog, 
+                "配置已保存\n\n" + ApiConfigManager.getInstance().getStatusString(),
+                "配置已保存", 
+                JOptionPane.INFORMATION_MESSAGE);
+        });
+        
+        JButton resetBtn = new JButton("重置");
+        resetBtn.addActionListener(e -> {
+            apiUrlField.setText("http://127.0.0.1:5000/predict");
+            apiEnabledCheck.setSelected(false);
+            csvEnabledCheck.setSelected(true);
+            csvPathField.setText("");
+            useDefaultCsvPath.setSelected(true);
+            csvPathField.setEnabled(false);
+            browseBtn.setEnabled(false);
+        });
+        
+        JButton cancelBtn = new JButton("取消");
+        cancelBtn.addActionListener(e -> configDialog.dispose());
+        
+        buttonPanel.add(saveBtn);
+        buttonPanel.add(resetBtn);
+        buttonPanel.add(cancelBtn);
+        
+        configDialog.add(mainPanel, BorderLayout.CENTER);
+        configDialog.add(buttonPanel, BorderLayout.SOUTH);
+        
+        // 初始启用/禁用状态
+        csvPathField.setEnabled(!useDefaultCsvPath.isSelected());
+        browseBtn.setEnabled(!useDefaultCsvPath.isSelected());
+        
+        configDialog.setVisible(true);
+    }
+    
+    private void updateFlowCountOnUI(int count) {
+        lblFlowCnt.setText("流量: " + count);
     }
 }
