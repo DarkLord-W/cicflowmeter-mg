@@ -1,0 +1,40 @@
+{
+  "@timestamp": {
+    "$resolver": "timestamp",
+    "pattern": {
+      "format": "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+      "timeZone": "UTC"
+    }
+  },
+  "@version": "1",
+  "message": {
+    "$resolver": "message",
+    "stringified": true
+  },
+  "level": {
+    "$resolver": "level"
+  },
+  "logger": {
+    "$resolver": "logger",
+    "field": "logger"
+  },
+  "thread": {
+    "$resolver": "thread",
+    "field": "thread"
+  },
+  "exception": {
+    "$resolver": "exception",
+    "field": "exception",
+    "stackTrace": {
+      "stringified": true
+    }
+  },
+  "host": {
+    "$resolver": "hostName"
+  },
+  "service": "cicflowmeter",
+  "tags": ["cicflowmeter", "network-traffic"],
+  "context": {
+    "$resolver": "mdc"
+  }
+}

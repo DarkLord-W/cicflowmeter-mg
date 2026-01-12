@@ -1,0 +1,52 @@
+[Unit]
+Description=CICFlowMeter Network Traffic Analyzer
+Documentation=https://github.com/CanadianInstituteForCybersecurity/CICFlowMeter
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=cicflowmeter
+Group=cicflowmeter
+# 创建专用用户（如果不存在）
+ExecStartPre=/usr/bin/getent passwd cicflowmeter >/dev/null || /usr/sbin/useradd -r -s /sbin/nologin -d /var/lib/cicflowmeter cicflowmeter
+# 确保配置目录存在并有正确权限
+ExecStartPre=/bin/mkdir -p /var/lib/cicflowmeter
+ExecStartPre=/bin/chown -R cicflowmeter:cicflowmeter /var/lib/cicflowmeter
+ExecStartPre=/bin/chmod 700 /var/lib/cicflowmeter
+
+# 主启动命令
+ExecStart=/usr/bin/java \
+  -Djava.library.path=/usr/share/cicflowmeter/lib/native \
+  -Dlog4j.configurationFile=file:/etc/cicflowmeter/log4j2.xml \
+  -Dcicflowmeter.config.dir=/var/lib/cicflowmeter \
+  -Dcicflowmeter.health.port=8888 \
+  -jar /usr/share/cicflowmeter/cicflowmeter.jar \
+  capture --interface eth0 --health-check
+
+# 重启策略
+Restart=on-failure
+RestartSec=5s
+
+# 安全加固
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/cicflowmeter /var/log/cicflowmeter
+ReadOnlyPaths=/usr/share/cicflowmeter /etc/cicflowmeter
+
+# 资源限制
+MemoryLimit=2G
+CPUQuota=200%
+
+# 标准输出/错误重定向到syslog
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=cicflowmeter
+
+# 环境变量
+Environment="JAVA_OPTS=-Xmx2g -Xms512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
+
+[Install]
+WantedBy=multi-user.target

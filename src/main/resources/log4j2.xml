@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN" packages="org.apache.logging.log4j.layout.template.json">
+  <Properties>
+    <Property name="LOG_PATTERN">%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n</Property>
+    <Property name="LOG_DIR">${sys:user.home}/.cicflowmeter/logs</Property>
+    <Property name="LOG_FILE_NAME">cicflowmeter</Property>
+    <Property name="JSON_LOG_PATTERN">{"@timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}", "level":"%level", "thread":"%t", "logger":"%logger", "message":"%enc{%msg}{JSON}", "host":"${hostName}", "service":"cicflowmeter"}</Property>
+  </Properties>
+
+  <Appenders>
+    <!-- 控制台输出 - 适合开发环境 -->
+    <Console name="Console" target="SYSTEM_OUT">
+      <PatternLayout pattern="${LOG_PATTERN}"/>
+      <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
+    </Console>
+
+    <!-- JSON文件输出 - 适合生产环境和ELK集成 -->
+    <!-- 暂时注释掉JsonTemplateLayout，与log4j-layout-template-json 2.17.0版本不兼容 -->
+    <!--
+    <RollingFile name="JsonFile" fileName="${LOG_DIR}/${LOG_FILE_NAME}.json"
+                 filePattern="${LOG_DIR}/${LOG_FILE_NAME}-%d{yyyy-MM-dd}-%i.json.gz">
+      <JsonTemplateLayout eventTemplateUri="classpath:log4j2-layouts/ElasticSearchJsonLayout.json"/>
+      <Policies>
+        <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+        <SizeBasedTriggeringPolicy size="100 MB"/>
+      </Policies>
+      <DefaultRolloverStrategy max="30">
+        <Delete basePath="${LOG_DIR}" maxDepth="2">
+          <IfFileName glob="${LOG_FILE_NAME}-*.json.gz">
+            <IfLastModified age="30d"/>
+          </IfFileName>
+        </Delete>
+      </DefaultRolloverStrategy>
+    </RollingFile>
+    -->
+
+    <!-- 详细日志文件 - 文本格式 -->
+    <RollingFile name="DetailedFile" fileName="${LOG_DIR}/${LOG_FILE_NAME}-detail.log"
+                 filePattern="${LOG_DIR}/${LOG_FILE_NAME}-detail-%d{yyyy-MM-dd}-%i.log.gz">
+      <PatternLayout pattern="${LOG_PATTERN}"/>
+      <Policies>
+        <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+        <SizeBasedTriggeringPolicy size="50 MB"/>
+      </Policies>
+      <DefaultRolloverStrategy max="10"/>
+    </RollingFile>
+
+    <!-- 错误日志文件 - 只记录ERROR及以上 -->
+    <RollingFile name="ErrorFile" fileName="${LOG_DIR}/error.log"
+                 filePattern="${LOG_DIR}/error-%d{yyyy-MM-dd}-%i.log.gz">
+      <PatternLayout pattern="${LOG_PATTERN}"/>
+      <ThresholdFilter level="ERROR" onMatch="ACCEPT" onMismatch="DENY"/>
+      <Policies>
+        <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+        <SizeBasedTriggeringPolicy size="50 MB"/>
+      </Policies>
+      <DefaultRolloverStrategy max="30"/>
+    </RollingFile>
+  </Appenders>
+
+  <Loggers>
+    <!-- 根日志记录器 -->
+    <Root level="INFO">
+      <AppenderRef ref="Console"/>
+      <!-- <AppenderRef ref="JsonFile"/> -->
+      <AppenderRef ref="DetailedFile" level="DEBUG"/>
+      <AppenderRef ref="ErrorFile"/>
+    </Root>
+
+    <!-- CICFlowMeter项目日志 -->
+    <Logger name="cic.cs.unb.ca" level="DEBUG" additivity="false">
+      <AppenderRef ref="Console"/>
+      <!-- <AppenderRef ref="JsonFile"/> -->
+      <AppenderRef ref="DetailedFile"/>
+    </Logger>
+
+    <!-- 网络抓包相关日志 -->
+    <Logger name="cic.cs.unb.ca.jnetpcap" level="INFO" additivity="false">
+      <AppenderRef ref="Console"/>
+      <!-- <AppenderRef ref="JsonFile"/> -->
+    </Logger>
+
+    <!-- API相关日志 -->
+    <Logger name="cic.cs.unb.ca.jnetpcap.worker.ApiSendTask" level="DEBUG" additivity="false">
+      <AppenderRef ref="Console"/>
+      <!-- <AppenderRef ref="JsonFile"/> -->
+    </Logger>
+  </Loggers>
+</Configuration>

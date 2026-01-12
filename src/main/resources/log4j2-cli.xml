@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+  <Properties>
+    <Property name="LOG_PATTERN">%d{HH:mm:ss.SSS} [%t] %-5level %logger{20} - %msg%n</Property>
+    <Property name="LOG_DIR">${sys:user.home}/.cicflowmeter/logs</Property>
+    <Property name="LOG_FILE_NAME">cicflowmeter</Property>
+  </Properties>
+
+  <Appenders>
+    <!-- 控制台输出 - CLI模式更简洁 -->
+    <Console name="Console" target="SYSTEM_OUT">
+      <PatternLayout pattern="${LOG_PATTERN}"/>
+    </Console>
+
+    <!-- JSON文件输出 - 适合ELK集成 -->
+    <!-- 暂时禁用JSON输出，因log4j-layout-template-json兼容性问题 -->
+    <!--
+    <RollingFile name="JsonFile" fileName="${LOG_DIR}/${LOG_FILE_NAME}.json"
+                 filePattern="${LOG_DIR}/${LOG_FILE_NAME}-%d{yyyy-MM-dd}-%i.json.gz">
+      <JsonTemplateLayout eventTemplateUri="classpath:log4j2-layouts/ElasticSearchJsonLayout.json"/>
+      <Policies>
+        <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+        <SizeBasedTriggeringPolicy size="100 MB"/>
+      </Policies>
+      <DefaultRolloverStrategy max="30">
+        <Delete basePath="${LOG_DIR}" maxDepth="2">
+          <IfFileName glob="${LOG_FILE_NAME}-*.json.gz">
+            <IfLastModified age="30d"/>
+          </IfFileName>
+        </Delete>
+      </DefaultRolloverStrategy>
+    </RollingFile>
+    -->
+
+    <!-- 详细调试日志 -->
+    <RollingFile name="DebugFile" fileName="${LOG_DIR}/debug.log"
+                 filePattern="${LOG_DIR}/debug-%d{yyyy-MM-dd}-%i.log.gz">
+      <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
+      <Policies>
+        <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+        <SizeBasedTriggeringPolicy size="50 MB"/>
+      </Policies>
+      <DefaultRolloverStrategy max="10"/>
+    </RollingFile>
+  </Appenders>
+
+  <Loggers>
+    <!-- 根日志记录器 - CLI模式默认INFO级别 -->
+     <Root level="INFO">
+       <AppenderRef ref="Console"/>
+       <!-- <AppenderRef ref="JsonFile"/> -->
+       <AppenderRef ref="DebugFile" level="DEBUG"/>
+     </Root>
+
+     <!-- CICFlowMeter项目日志 -->
+     <Logger name="cic.cs.unb.ca" level="DEBUG" additivity="false">
+       <AppenderRef ref="Console" level="INFO"/>
+       <!-- <AppenderRef ref="JsonFile"/> -->
+       <AppenderRef ref="DebugFile"/>
+     </Logger>
+
+     <!-- 网络抓包详细日志 -->
+     <Logger name="cic.cs.unb.ca.jnetpcap" level="INFO" additivity="false">
+       <AppenderRef ref="Console" level="INFO"/>
+       <!-- <AppenderRef ref="JsonFile"/> -->
+     </Logger>
+
+     <!-- HTTP健康检查日志 -->
+     <Logger name="cic.cs.unb.ca.health" level="INFO" additivity="false">
+       <AppenderRef ref="Console" level="INFO"/>
+       <!-- <AppenderRef ref="JsonFile"/> -->
+     </Logger>
+  </Loggers>
+</Configuration>

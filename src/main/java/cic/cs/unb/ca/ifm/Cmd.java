@@ -19,6 +19,7 @@ import static cic.cs.unb.ca.Sys.FILE_SEP;
 public class Cmd {
 
     public static final Logger logger = LoggerFactory.getLogger(Cmd.class);
+    private static final String VERSION = "4.1";
     private static final String DividingLine = "-------------------------------------------------------------------------------";
     private static String[] animationChars = new String[]{"|", "/", "-", "\\"};
 
@@ -29,6 +30,18 @@ public class Cmd {
         String rootPath = System.getProperty("user.dir");
         String pcapPath;
         String outPath;
+
+        // 处理帮助和版本参数
+        if (args.length > 0) {
+            if (args[0].equals("--help") || args[0].equals("-h")) {
+                printHelp();
+                return;
+            }
+            if (args[0].equals("--version") || args[0].equals("-v")) {
+                printVersion();
+                return;
+            }
+        }
 
         /* Select path for reading all .pcap files */
         /*if(args.length<1 || args[0]==null) {
@@ -43,7 +56,7 @@ public class Cmd {
         }*/
 
         if (args.length < 1) {
-            logger.info("Please select pcap!");
+            printHelp();
             return;
         }
         pcapPath = args[0];
@@ -199,6 +212,34 @@ public class Cmd {
 
             System.out.print(console);
         }
+    }
+
+    private static void printVersion() {
+        System.out.println("CICFlowMeter Legacy CMD version " + VERSION);
+    }
+
+    private static void printHelp() {
+        System.out.println("CICFlowMeter Legacy CMD version " + VERSION);
+        System.out.println("Usage:");
+        System.out.println("  java -jar cicflowmeter-legacy.jar <pcap-file-or-directory> <output-directory>");
+        System.out.println("  ./gradlew exeCMD -Pargs=\"<pcap-file-or-directory> <output-directory>\"");
+        System.out.println();
+        System.out.println("Arguments:");
+        System.out.println("  <pcap-file-or-directory>   Path to a PCAP file or directory containing PCAP files");
+        System.out.println("  <output-directory>         Directory where CSV output files will be saved");
+        System.out.println();
+        System.out.println("Options:");
+        System.out.println("  --help, -h                 Show this help message");
+        System.out.println("  --version, -v              Show version information");
+        System.out.println();
+        System.out.println("Examples:");
+        System.out.println("  # Using JAR file");
+        System.out.println("  java -jar cicflowmeter-legacy.jar /path/to/pcaps /path/to/output");
+        System.out.println("  # Using Gradle");
+        System.out.println("  ./gradlew exeCMD -Pargs=\"/path/to/pcaps /path/to/output\"");
+        System.out.println();
+        System.out.println("Note: This is the legacy command-line interface. For the enhanced CLI with");
+        System.out.println("      more features, use 'cicflowmeter-cli' (CLIMain).");
     }
 
 }

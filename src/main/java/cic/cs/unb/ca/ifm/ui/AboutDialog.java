@@ -68,11 +68,18 @@ public class AboutDialog {
         baseBox.add(lblCpr);
         baseBox.add(Box.createVerticalStrut(5));
         
-        JLabel lblVersion = new JLabel("Version: 3.0");
+        JLabel lblVersion = new JLabel("Version: 3.0 (增强版)");
         lblVersion.setForeground(Color.GRAY);
         lblVersion.setAlignmentX(Component.CENTER_ALIGNMENT);
         baseBox.add(lblVersion);
-        baseBox.add(Box.createVerticalStrut(20));
+        baseBox.add(Box.createVerticalStrut(5));
+        
+        // 增强版功能描述
+        JLabel lblEnhanced = new JLabel("<html><center>增强版功能：时间规则标签系统、API集成、分组管理<br>实时流量特征提取与自动标注</center></html>");
+        lblEnhanced.setForeground(new Color(0, 102, 0)); // 深绿色
+        lblEnhanced.setAlignmentX(Component.CENTER_ALIGNMENT);
+        baseBox.add(lblEnhanced);
+        baseBox.add(Box.createVerticalStrut(15));
         
         JTextArea txtArea = new JTextArea();
         txtArea.setFont(UIManager.getFont("OptionPane.font"));
@@ -91,7 +98,7 @@ public class AboutDialog {
         
         panel.add(baseBox);
         
-        UIManager.put("OptionPane.minimumSize",new Dimension(800, 400));
-        JOptionPane.showMessageDialog(parent, panel, "About CICFlowMeter", JOptionPane.PLAIN_MESSAGE, icon);
+        UIManager.put("OptionPane.minimumSize",new Dimension(800, 450));
+        JOptionPane.showMessageDialog(parent, panel, "About CICFlowMeter (增强版)", JOptionPane.PLAIN_MESSAGE, icon);
     }
 }

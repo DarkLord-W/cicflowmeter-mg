@@ -4,6 +4,8 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import cic.cs.unb.ca.Sys;
+import cic.cs.unb.ca.FileSecurityUtils;
+import cic.cs.unb.ca.jnetpcap.DateFormatter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -107,6 +109,12 @@ public class TimeRuleManager {
                 logger.debug("规则匹配: {} -> {}", rule.getRuleName(), rule.getLabel());
                 return rule.getLabel();
             }
+        }
+        
+        // 调试信息：没有规则匹配
+        if (logger.isDebugEnabled()) {
+            String timeStr = DateFormatter.convertMilliseconds2String(timestampMicros / 1000L, "yyyy-MM-dd HH:mm:ss");
+            logger.debug("没有规则匹配时间戳: {} ({}), 启用规则数: {}", timestampMicros, timeStr, enabledRules.size());
         }
         
         return LabelConstants.getDefaultLabel();
@@ -322,11 +330,11 @@ public class TimeRuleManager {
     
     @SuppressWarnings("unchecked")
     public synchronized void loadRulesFromFile() {
-        // 调试信息
-        System.err.println("[DEBUG] getConfigDir(): " + getConfigDir());
-        System.err.println("[DEBUG] getRulesFile(): " + getRulesFile());
-        System.err.println("[DEBUG] user.home: " + System.getProperty("user.home"));
-        System.err.println("[DEBUG] Sys.FILE_SEP: " + Sys.FILE_SEP);
+        // 调试信息（已注释）
+        // System.err.println("[DEBUG] getConfigDir(): " + getConfigDir());
+        // System.err.println("[DEBUG] getRulesFile(): " + getRulesFile());
+        // System.err.println("[DEBUG] user.home: " + System.getProperty("user.home"));
+        // System.err.println("[DEBUG] Sys.FILE_SEP: " + Sys.FILE_SEP);
         
         // 确保配置目录存在
         try {
@@ -341,6 +349,15 @@ public class TimeRuleManager {
         if (!configFile.exists()) {
             logger.info("配置文件不存在: {}", getRulesFile());
             return;
+        }
+        
+        // 检查文件权限安全性
+        if (!FileSecurityUtils.isFileSecure(configFile)) {
+            logger.warn("配置文件权限不安全: {}", getRulesFile());
+            // 尝试修复权限
+            if (FileSecurityUtils.fixFilePermissionsIfInsecure(configFile)) {
+                logger.info("已修复配置文件权限: {}", getRulesFile());
+            }
         }
         
         try (Reader reader = new InputStreamReader(
@@ -381,12 +398,10 @@ public class TimeRuleManager {
     }
     
     public synchronized boolean saveRulesToFile() {
-        File configDir = new File(getConfigDir());
-        if (!configDir.exists()) {
-            if (!configDir.mkdirs()) {
-                logger.error("创建配置目录失败: {}", getConfigDir());
-                return false;
-            }
+        // 确保配置目录安全存在
+        if (!FileSecurityUtils.ensureSecureConfigDir(getConfigDir())) {
+            logger.error("无法确保安全配置目录: {}", getConfigDir());
+            return false;
         }
         
         Map<String, Object> config = new HashMap<>();
@@ -395,18 +410,18 @@ public class TimeRuleManager {
         config.put("groups", groups);
         config.put("rules", rules);
         
-        try (Writer writer = new OutputStreamWriter(
-                new FileOutputStream(getRulesFile()), StandardCharsets.UTF_8)) {
-            
-            gson.toJson(config, writer);
-            logger.info("配置文件保存成功: {} ({} 条规则, {} 个分组)", 
+        // 将配置转换为JSON字符串
+        String jsonContent = gson.toJson(config);
+        
+        // 使用安全文件保存
+        boolean saved = FileSecurityUtils.saveSecureConfigFile(getRulesFile(), jsonContent);
+        if (saved) {
+            logger.info("安全配置文件保存成功: {} ({} 条规则, {} 个分组)", 
                 getRulesFile(), rules.size(), groups.size());
-            return true;
-            
-        } catch (Exception e) {
-            logger.error("保存配置文件失败: {}", getRulesFile(), e);
-            return false;
+        } else {
+            logger.error("安全配置文件保存失败: {}", getRulesFile());
         }
+        return saved;
     }
     
     /**

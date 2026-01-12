@@ -2,9 +2,13 @@ apply plugin: 'java'
 apply plugin: 'maven'
 apply plugin: 'application'
 
+// 使用新的构建目录避免权限问题
+// buildDir = new File(projectDir, "build-new")
+buildDir = new File("/tmp/build-cic")
+
 group = 'cic.unb.ca'
-version = '4.0'
-description = """CICFlowMeterV4"""
+version = '4.1'
+description = """CICFlowMeter V4.1 Enhanced"""
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
@@ -15,8 +19,11 @@ repositories {
     maven { url "https://clojars.org/repo" }
 }
 dependencies {
-    compile group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.11.0'
-    compile group: 'org.slf4j', name: 'slf4j-log4j12', version:'1.7.25'
+    compile group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.17.0'
+    compile group: 'org.apache.logging.log4j', name: 'log4j-api', version: '2.17.0'
+    compile group: 'org.apache.logging.log4j', name: 'log4j-slf4j-impl', version: '2.17.0'
+    // compile group: 'org.apache.logging.log4j', name: 'log4j-layout-template-json', version: '2.17.0'
+    compile group: 'commons-cli', name: 'commons-cli', version:'1.5.0'
     compile group: 'org.jnetpcap', name: 'jnetpcap', version:'1.4.1'
     compile group: 'junit', name: 'junit', version:'4.12'
     compile group: 'org.apache.commons', name: 'commons-lang3', version:'3.6'
@@ -75,7 +82,7 @@ task zipPro(type: Zip){
 }
 
 
-task fatJar(type: Jar) {
+task fatJarOld(type: Jar) {
     println 'type Jar'
 
     manifest {
@@ -118,12 +125,40 @@ task exeCMD(type: JavaExec){
     }else{
         jvmArgs '-Djava.library.path=jnetpcap/linux/jnetpcap-1.4.r1425'
     }
-    //args = ["/home/yzhang29/0a/Capture/", "/home/yzhang29/0a/Capture/out/"]
+    // 传递参数给CMD
+    if (project.hasProperty('args')) {
+        args project.args.split(' ')
+    }
+}
+
+task executeCLI(type: JavaExec){
+    main = "cic.cs.unb.ca.ifm.CLIMain" //main class
+    classpath = sourceSets.main.runtimeClasspath
+    String osName = System.getProperty('os.name').toLowerCase()
+    if(osName.contains('windows')){
+        jvmArgs '-Djava.library.path=jnetpcap/win/jnetpcap-1.4.r1425'
+    }else{
+        jvmArgs '-Djava.library.path=jnetpcap/linux/jnetpcap-1.4.r1425'
+    }
+    // 使用CLI专用的日志配置文件
+    jvmArgs '-Dlog4j.configurationFile=log4j2-cli.xml'
+    // 传递参数给CLI
+    if (project.hasProperty('args')) {
+        args project.args.split(' ')
+    }
 }
 
 
 task cmdScript(type: CreateStartScripts) {
     mainClassName = "cic.cs.unb.ca.ifm.Cmd"
+    applicationName = "cfm-legacy"
+    outputDir = new File(project.buildDir, 'scripts')
+    classpath = jar.outputs.files + project.configurations.runtime
+    defaultJvmOpts = ["-Djava.library.path=../lib/native"]
+}
+
+task climainScript(type: CreateStartScripts) {
+    mainClassName = "cic.cs.unb.ca.ifm.CLIMain"
     applicationName = "cfm"
     outputDir = new File(project.buildDir, 'scripts')
     classpath = jar.outputs.files + project.configurations.runtime
@@ -132,6 +167,7 @@ task cmdScript(type: CreateStartScripts) {
 
 applicationDistribution.into("bin") {
     from(cmdScript)
+    from(climainScript)
     fileMode = 0755
 }
 
@@ -155,4 +191,53 @@ applicationDistribution.from('LICENSE.txt'){
 applicationDistribution.from('ReadMe.txt'){
     into('')
     rename("ReadMe.txt","README.md")
+}
+
+// 创建包含所有依赖的Fat Jar（Uber Jar）
+task fatJarGui(type: Jar) {
+    baseName = 'cicflowmeter-gui'
+    version = version
+    manifest {
+        attributes 'Implementation-Title': 'CICFlowMeter GUI',
+                   'Implementation-Version': version,
+                   'Main-Class': 'cic.cs.unb.ca.ifm.App'
+    }
+    from sourceSets.main.output
+    from { configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
+    exclude 'META-INF/*.RSA', 'META-INF/*.SF', 'META-INF/*.DSA'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+task fatJarCli(type: Jar) {
+    baseName = 'cicflowmeter-cli'
+    version = version
+    manifest {
+        attributes 'Implementation-Title': 'CICFlowMeter CLI',
+                   'Implementation-Version': version,
+                   'Main-Class': 'cic.cs.unb.ca.ifm.CLIMain'
+    }
+    from sourceSets.main.output
+    from { configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
+    exclude 'META-INF/*.RSA', 'META-INF/*.SF', 'META-INF/*.DSA'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+task fatJarLegacy(type: Jar) {
+    baseName = 'cicflowmeter-legacy'
+    version = version
+    manifest {
+        attributes 'Implementation-Title': 'CICFlowMeter Legacy CMD',
+                   'Implementation-Version': version,
+                   'Main-Class': 'cic.cs.unb.ca.ifm.Cmd'
+    }
+    from sourceSets.main.output
+    from { configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
+    exclude 'META-INF/*.RSA', 'META-INF/*.SF', 'META-INF/*.DSA'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+// 默认fatJar任务构建CLI版本
+task fatJar(dependsOn: fatJarCli) {
+    description = '构建包含所有依赖的可执行JAR文件（默认CLI版本）'
+    group = 'distribution'
 }

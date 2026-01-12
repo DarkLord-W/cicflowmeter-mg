@@ -149,6 +149,7 @@ public class FlowMonitorPane extends JPanel {
         btnSave.setEnabled(false);
         btnGraph.setFocusable(false);
         btnGraph.setEnabled(false);
+        btnGraph.setToolTipText("可视化已保存的CSV文件（保存文件后启用）");
 
         String dataPath = FlowMgr.getInstance().getmDataPath();
         File initialDir = (dataPath != null) ? new File(dataPath) : new File(System.getProperty("user.dir"));
@@ -595,7 +596,7 @@ public class FlowMonitorPane extends JPanel {
         
         JButton resetBtn = new JButton("重置");
         resetBtn.addActionListener(e -> {
-            apiUrlField.setText("http://127.0.0.1:5000/predict");
+            apiUrlField.setText("http://127.0.0.1:5000/flows");
             apiEnabledCheck.setSelected(false);
             csvEnabledCheck.setSelected(true);
             csvPathField.setText("");
@@ -655,7 +656,7 @@ public class FlowMonitorPane extends JPanel {
         gbc.weightx = 1.0;
         gbc.weighty = 0.6;
         
-        String[] columnNames = {"启用", "规则名称", "开始时间", "结束时间", "标签", "优先级", "分组"};
+        String[] columnNames = {"启用", "规则名称", "开始时间", "结束时间", "标签", "优先级", "分组", "规则ID"};
         DefaultTableModel tableModel = new DefaultTableModel(columnNames, 0) {
             @Override
             public Class<?> getColumnClass(int column) {
@@ -678,6 +679,10 @@ public class FlowMonitorPane extends JPanel {
         ruleTable.getColumnModel().getColumn(4).setPreferredWidth(120);
         ruleTable.getColumnModel().getColumn(5).setPreferredWidth(60);
         ruleTable.getColumnModel().getColumn(6).setPreferredWidth(100);
+        // 隐藏规则ID列（第7列）
+        ruleTable.getColumnModel().getColumn(7).setMinWidth(0);
+        ruleTable.getColumnModel().getColumn(7).setMaxWidth(0);
+        ruleTable.getColumnModel().getColumn(7).setPreferredWidth(0);
         
         JScrollPane tableScrollPane = new JScrollPane(ruleTable);
         tableScrollPane.setBorder(BorderFactory.createTitledBorder(
@@ -848,6 +853,9 @@ public class FlowMonitorPane extends JPanel {
                         updateRuleStats();
                         clearEditFields(ruleNameField, startTimeSpinner, endTimeSpinner,
                                       labelComboBox, prioritySpinner, groupComboBox, enabledCheck);
+                        JOptionPane.showMessageDialog(configDialog, "规则删除成功", "成功", JOptionPane.INFORMATION_MESSAGE);
+                    } else {
+                        JOptionPane.showMessageDialog(configDialog, "规则删除失败，规则可能不存在", "错误", JOptionPane.ERROR_MESSAGE);
                     }
                 }
             } else {
@@ -1115,25 +1123,343 @@ public class FlowMonitorPane extends JPanel {
      * 显示分组管理对话框
      */
     private void showGroupManagementDialog(TimeRuleManager ruleManager, JComboBox<String> groupComboBox) {
-        // 简化版本：显示分组列表
-        StringBuilder groupsInfo = new StringBuilder();
-        groupsInfo.append("当前分组列表:\n\n");
+        // 创建分组管理对话框
+        JDialog groupDialog = new JDialog(
+            (Frame)SwingUtilities.getWindowAncestor(this), 
+            "分组管理", 
+            true
+        );
+        groupDialog.setLayout(new BorderLayout(10, 10));
+        groupDialog.setSize(700, 500);
+        groupDialog.setLocationRelativeTo(this);
+        
+        // 主面板
+        JPanel mainPanel = new JPanel(new BorderLayout(5, 5));
+        
+        // 1. 分组列表表格
+        String[] columnNames = {"分组ID", "分组名称", "描述", "启用"};
+        DefaultTableModel groupTableModel = new DefaultTableModel(columnNames, 0) {
+            @Override
+            public Class<?> getColumnClass(int column) {
+                if (column == 3) return Boolean.class;
+                return String.class;
+            }
+            
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return column == 3; // 只允许编辑"启用"列
+            }
+        };
+        
+        JTable groupTable = new JTable(groupTableModel);
+        groupTable.setRowHeight(25);
+        groupTable.getColumnModel().getColumn(0).setPreferredWidth(100);
+        groupTable.getColumnModel().getColumn(1).setPreferredWidth(150);
+        groupTable.getColumnModel().getColumn(2).setPreferredWidth(250);
+        groupTable.getColumnModel().getColumn(3).setPreferredWidth(50);
+        
+        // 加载分组数据
+        loadGroupsToTable(groupTableModel, ruleManager);
+        
+        // 表格启用状态变化监听器
+        groupTableModel.addTableModelListener(e -> {
+            int row = e.getFirstRow();
+            int column = e.getColumn();
+            if (column == 3 && row >= 0) {
+                String groupId = (String) groupTableModel.getValueAt(row, 0);
+                boolean enabled = (Boolean) groupTableModel.getValueAt(row, 3);
+                ruleManager.setGroupEnabled(groupId, enabled);
+                updateGroupComboBox(groupComboBox, ruleManager);
+            }
+        });
+        
+        JScrollPane tableScrollPane = new JScrollPane(groupTable);
+        tableScrollPane.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createEtchedBorder(), "分组列表", 
+            TitledBorder.LEFT, TitledBorder.TOP));
+        
+        mainPanel.add(tableScrollPane, BorderLayout.CENTER);
+        
+        // 2. 按钮面板
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
+        
+        JButton addButton = new JButton("添加分组");
+        addButton.addActionListener(e -> {
+            showAddEditGroupDialog(null, ruleManager, groupTableModel, groupComboBox, groupDialog);
+        });
+        
+        JButton editButton = new JButton("编辑分组");
+        editButton.addActionListener(e -> {
+            int selectedRow = groupTable.getSelectedRow();
+            if (selectedRow >= 0) {
+                String groupId = (String) groupTableModel.getValueAt(selectedRow, 0);
+                RuleGroup selectedGroup = findGroupById(groupId, ruleManager);
+                if (selectedGroup != null) {
+                    showAddEditGroupDialog(selectedGroup, ruleManager, groupTableModel, groupComboBox, groupDialog);
+                }
+            } else {
+                JOptionPane.showMessageDialog(groupDialog, "请先选择要编辑的分组", "警告", JOptionPane.WARNING_MESSAGE);
+            }
+        });
+        
+        JButton deleteButton = new JButton("删除分组");
+        deleteButton.addActionListener(e -> {
+            int selectedRow = groupTable.getSelectedRow();
+            if (selectedRow >= 0) {
+                String groupId = (String) groupTableModel.getValueAt(selectedRow, 0);
+                String groupName = (String) groupTableModel.getValueAt(selectedRow, 1);
+                
+                // 不能删除默认分组
+                if ("default".equals(groupId)) {
+                    JOptionPane.showMessageDialog(groupDialog, "不能删除默认分组", "错误", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                
+                int confirm = JOptionPane.showConfirmDialog(groupDialog, 
+                    String.format("确定要删除分组 '%s' 吗？\n该分组下的所有规则也将被删除！", groupName), 
+                    "确认删除", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+                
+                if (confirm == JOptionPane.YES_OPTION) {
+                    if (ruleManager.removeGroup(groupId)) {
+                        loadGroupsToTable(groupTableModel, ruleManager);
+                        updateGroupComboBox(groupComboBox, ruleManager);
+                        JOptionPane.showMessageDialog(groupDialog, "分组删除成功", "成功", JOptionPane.INFORMATION_MESSAGE);
+                    } else {
+                        JOptionPane.showMessageDialog(groupDialog, "分组删除失败", "错误", JOptionPane.ERROR_MESSAGE);
+                    }
+                }
+            } else {
+                JOptionPane.showMessageDialog(groupDialog, "请先选择要删除的分组", "警告", JOptionPane.WARNING_MESSAGE);
+            }
+        });
+        
+        JButton closeButton = new JButton("关闭");
+        closeButton.addActionListener(e -> groupDialog.dispose());
+        
+        buttonPanel.add(addButton);
+        buttonPanel.add(editButton);
+        buttonPanel.add(deleteButton);
+        buttonPanel.add(closeButton);
+        
+        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
+        
+        // 添加主面板到对话框
+        groupDialog.add(mainPanel, BorderLayout.CENTER);
+        
+        // 状态标签
+        JLabel statusLabel = new JLabel(String.format("共 %d 个分组", ruleManager.getAllGroups().size()));
+        statusLabel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+        groupDialog.add(statusLabel, BorderLayout.NORTH);
+        
+        groupDialog.setVisible(true);
+    }
+    
+    /**
+     * 加载分组到表格
+     */
+    private void loadGroupsToTable(DefaultTableModel tableModel, TimeRuleManager ruleManager) {
+        tableModel.setRowCount(0); // 清空表格
         
         for (RuleGroup group : ruleManager.getAllGroups()) {
-            groupsInfo.append(String.format("- %s (%s): %s\n", 
-                group.getGroupName(), group.getGroupId(),
-                group.isEnabled() ? "启用" : "禁用"));
+            Object[] rowData = {
+                group.getGroupId(),
+                group.getGroupName(),
+                group.getDescription(),
+                group.isEnabled()
+            };
+            tableModel.addRow(rowData);
         }
+    }
+    
+    /**
+     * 根据ID查找分组
+     */
+    private RuleGroup findGroupById(String groupId, TimeRuleManager ruleManager) {
+        for (RuleGroup group : ruleManager.getAllGroups()) {
+            if (group.getGroupId().equals(groupId)) {
+                return group;
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * 显示添加/编辑分组对话框
+     */
+    private void showAddEditGroupDialog(RuleGroup group, TimeRuleManager ruleManager, 
+                                      DefaultTableModel groupTableModel, 
+                                      JComboBox<String> groupComboBox, 
+                                      JDialog parentDialog) {
+        boolean isEditMode = group != null;
         
-        JOptionPane.showMessageDialog(null, groupsInfo.toString(), 
-            "分组管理", JOptionPane.INFORMATION_MESSAGE);
+        JDialog dialog = new JDialog(parentDialog, isEditMode ? "编辑分组" : "添加分组", true);
+        dialog.setLayout(new BorderLayout(10, 10));
+        dialog.setSize(400, 300);
+        dialog.setLocationRelativeTo(parentDialog);
+        
+        JPanel mainPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(5, 5, 5, 5);
+        
+        // 分组ID（编辑模式下不可修改）
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.weightx = 0.0;
+        mainPanel.add(new JLabel("分组ID:"), gbc);
+        
+        gbc.gridx = 1;
+        gbc.weightx = 1.0;
+        JTextField groupIdField = new JTextField(20);
+        if (isEditMode) {
+            groupIdField.setText(group.getGroupId());
+            groupIdField.setEditable(false);
+        } else {
+            // 新分组生成随机ID
+            groupIdField.setText(java.util.UUID.randomUUID().toString().substring(0, 8));
+        }
+        mainPanel.add(groupIdField, gbc);
+        
+        // 分组名称
+        gbc.gridx = 0;
+        gbc.gridy = 1;
+        gbc.weightx = 0.0;
+        mainPanel.add(new JLabel("分组名称:"), gbc);
+        
+        gbc.gridx = 1;
+        gbc.weightx = 1.0;
+        JTextField groupNameField = new JTextField(20);
+        if (isEditMode) {
+            groupNameField.setText(group.getGroupName());
+        }
+        mainPanel.add(groupNameField, gbc);
+        
+        // 分组描述
+        gbc.gridx = 0;
+        gbc.gridy = 2;
+        gbc.weightx = 0.0;
+        mainPanel.add(new JLabel("描述:"), gbc);
+        
+        gbc.gridx = 1;
+        gbc.weightx = 1.0;
+        JTextArea descriptionArea = new JTextArea(3, 20);
+        descriptionArea.setLineWrap(true);
+        descriptionArea.setWrapStyleWord(true);
+        if (isEditMode) {
+            descriptionArea.setText(group.getDescription());
+        }
+        JScrollPane descriptionScrollPane = new JScrollPane(descriptionArea);
+        mainPanel.add(descriptionScrollPane, gbc);
+        
+        // 启用状态
+        gbc.gridx = 0;
+        gbc.gridy = 3;
+        gbc.gridwidth = 2;
+        JCheckBox enabledCheck = new JCheckBox("启用分组", true);
+        if (isEditMode) {
+            enabledCheck.setSelected(group.isEnabled());
+        }
+        mainPanel.add(enabledCheck, gbc);
+        
+        // 按钮面板
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
+        JButton saveButton = new JButton("保存");
+        saveButton.addActionListener(e -> {
+            String groupId = groupIdField.getText().trim();
+            String groupName = groupNameField.getText().trim();
+            String description = descriptionArea.getText().trim();
+            boolean enabled = enabledCheck.isSelected();
+            
+            // 验证
+            if (groupId.isEmpty()) {
+                JOptionPane.showMessageDialog(dialog, "分组ID不能为空", "验证错误", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            if (groupName.isEmpty()) {
+                JOptionPane.showMessageDialog(dialog, "分组名称不能为空", "验证错误", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            // 创建或更新分组
+            RuleGroup newGroup = new RuleGroup(groupId, groupName, description, enabled);
+            
+            boolean success;
+            if (isEditMode) {
+                // 更新分组 - 需要保持相同的groupId
+                success = ruleManager.addGroup(newGroup); // addGroup会覆盖同ID分组
+            } else {
+                // 添加新分组
+                success = ruleManager.addGroup(newGroup);
+            }
+            
+            if (success) {
+                loadGroupsToTable(groupTableModel, ruleManager);
+                updateGroupComboBox(groupComboBox, ruleManager);
+                dialog.dispose();
+                JOptionPane.showMessageDialog(parentDialog, 
+                    isEditMode ? "分组更新成功" : "分组添加成功", 
+                    "成功", JOptionPane.INFORMATION_MESSAGE);
+            } else {
+                JOptionPane.showMessageDialog(dialog, 
+                    "操作失败，分组ID可能已存在", 
+                    "错误", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+        
+        JButton cancelButton = new JButton("取消");
+        cancelButton.addActionListener(e -> dialog.dispose());
+        
+        buttonPanel.add(saveButton);
+        buttonPanel.add(cancelButton);
+        
+        dialog.add(mainPanel, BorderLayout.CENTER);
+        dialog.add(buttonPanel, BorderLayout.SOUTH);
+        
+        dialog.setVisible(true);
     }
     
     /**
      * 导入规则
      */
     private void importRules(TimeRuleManager ruleManager, DefaultTableModel tableModel) {
-        JOptionPane.showMessageDialog(null, "导入功能开发中...", "导入", JOptionPane.INFORMATION_MESSAGE);
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("选择规则JSON文件");
+        fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("JSON文件 (*.json)", "json"));
+        fileChooser.setAcceptAllFileFilterUsed(false);
+        
+        int result = fileChooser.showOpenDialog(null);
+        if (result == JFileChooser.APPROVE_OPTION) {
+            File selectedFile = fileChooser.getSelectedFile();
+            try {
+                // 读取JSON文件内容
+                String json = new String(java.nio.file.Files.readAllBytes(selectedFile.toPath()), java.nio.charset.StandardCharsets.UTF_8);
+                
+                // 导入规则
+                if (ruleManager.importRulesFromJson(json)) {
+                    // 刷新表格
+                    loadRulesToTable(tableModel, ruleManager);
+                    updateRuleStats();
+                    JOptionPane.showMessageDialog(null, 
+                        String.format("规则导入成功！\n导入规则数: %d\n导入分组数: %d", 
+                            ruleManager.getTotalRuleCount(), 
+                            ruleManager.getTotalGroupCount()),
+                        "导入成功", 
+                        JOptionPane.INFORMATION_MESSAGE);
+                } else {
+                    JOptionPane.showMessageDialog(null, 
+                        "规则导入失败，请检查JSON文件格式是否正确", 
+                        "导入失败", 
+                        JOptionPane.ERROR_MESSAGE);
+                }
+            } catch (Exception e) {
+                logger.error("导入规则失败", e);
+                JOptionPane.showMessageDialog(null, 
+                    "导入规则失败: " + e.getMessage(), 
+                    "错误", 
+                    JOptionPane.ERROR_MESSAGE);
+            }
+        }
     }
     
     /**
