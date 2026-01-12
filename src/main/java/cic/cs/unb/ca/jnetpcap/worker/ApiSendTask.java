@@ -125,37 +125,9 @@ public class ApiSendTask implements Runnable {
     }
     
     private String headerFieldToJsonKey(String featureName) {
-        // 将特征名称转换为更标准的格式（移除空格，使用驼峰命名）
-        String jsonKey = featureName.replaceAll("\\s+", "")
-                                  .replaceAll("/", "_")
-                                  .replaceAll("\\(", "")
-                                  .replaceAll("\\)", "");
-        
-        // 特别处理Flow Duration
-        if (featureName.equals("Flow Duration")) {
-            logger.debug("headerFieldToJsonKey: '{}' -> 'FlowDuration' (特殊处理)", featureName);
-            return "FlowDuration";
-        }
-        // 特别处理Total Fwd Packets
-        else if (featureName.equals("Total Fwd Packet")) {
-            logger.debug("headerFieldToJsonKey: '{}' -> 'TotalFwdPackets' (特殊处理)", featureName);
-            return "TotalFwdPackets";
-        }
-        // 特别处理Packet Length Std
-        else if (featureName.equals("Packet Length Std")) {
-            logger.debug("headerFieldToJsonKey: '{}' -> 'PacketLengthStd' (特殊处理)", featureName);
-            return "PacketLengthStd";
-        }
-        // 特别处理Label
-        else if (featureName.equals("Label")) {
-            logger.debug("headerFieldToJsonKey: '{}' -> 'Label' (特殊处理)", featureName);
-            return "Label";
-        }
-        // 通用处理其他特征
-        else {
-            logger.debug("headerFieldToJsonKey: '{}' -> '{}'", featureName, jsonKey);
-            return jsonKey;
-        }
+        // 直接使用原始特征名称，与主界面列表完全一致
+        logger.debug("headerFieldToJsonKey: '{}' -> '{}' (保持原样)", featureName, featureName);
+        return featureName;
     }
     
     private String buildStructuredJson(String header, Map<String, String> flowFeatures) {

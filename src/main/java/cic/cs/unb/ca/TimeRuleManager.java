@@ -37,6 +37,11 @@ public class TimeRuleManager {
     // JSON序列化工具
     private Gson gson;
     
+    // 初始化状态
+    private volatile boolean initialized = false;
+    private volatile boolean backgroundLoadStarted = false;
+    private volatile boolean backgroundLoadCompleted = false;
+    
     // 配置文件路径
     private static String getConfigDir() {
         return System.getProperty("user.home") + Sys.FILE_SEP + ".cicflowmeter";
@@ -57,11 +62,11 @@ public class TimeRuleManager {
             .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeAdapter())
             .create();
         
-        // 初始化默认分组
+        // 初始化默认分组（不加载文件，延迟加载）
         initializeDefaultGroups();
         
-        // 加载保存的规则
-        loadRulesFromFile();
+        // 在后台线程中预加载规则（不阻塞启动）
+        startBackgroundLoad();
     }
     
     /**
@@ -82,11 +87,74 @@ public class TimeRuleManager {
     }
     
     /**
+     * 启动后台加载
+     */
+    private void startBackgroundLoad() {
+        if (!backgroundLoadStarted) {
+            synchronized (this) {
+                if (!backgroundLoadStarted) {
+                    backgroundLoadStarted = true;
+                    Thread backgroundThread = new Thread(() -> {
+                        try {
+                            logger.debug("后台规则加载线程启动");
+                            loadRulesFromFile();
+                            backgroundLoadCompleted = true;
+                            logger.debug("后台规则加载完成");
+                        } catch (Exception e) {
+                            logger.error("后台规则加载失败", e);
+                        }
+                    });
+                    backgroundThread.setName("TimeRuleManager-BackgroundLoader");
+                    backgroundThread.setDaemon(true);
+                    backgroundThread.start();
+                }
+            }
+        }
+    }
+    
+    /**
+     * 延迟初始化（线程安全）
+     */
+    private void initializeIfNeeded() {
+        if (!initialized) {
+            synchronized (this) {
+                if (!initialized) {
+                    // 如果后台加载已完成，直接使用结果
+                    if (backgroundLoadCompleted) {
+                        initialized = true;
+                        return;
+                    }
+                    
+                    // 否则同步加载（避免重复加载）
+                    logger.debug("同步加载规则文件（后台加载未完成）");
+                    loadRulesFromFile();
+                    initialized = true;
+                }
+            }
+        }
+    }
+    
+    /**
      * 根据时间戳获取匹配的标签
      * @param timestampMicros 微秒时间戳
      * @return 匹配的标签，如果没有匹配则返回默认标签
      */
     public String getLabelForTimestamp(long timestampMicros) {
+        // 快速检查：如果规则未初始化
+        if (!initialized) {
+            // 如果后台加载已完成，标记为已初始化
+            if (backgroundLoadCompleted) {
+                synchronized (this) {
+                    if (!initialized) {
+                        initialized = true;
+                    }
+                }
+            } else {
+                // 后台加载未完成，直接返回默认标签（不阻塞）
+                return LabelConstants.getDefaultLabel();
+            }
+        }
+        
         if (rules.isEmpty()) {
             return LabelConstants.getDefaultLabel();
         }
@@ -124,6 +192,8 @@ public class TimeRuleManager {
      * 获取所有启用的规则
      */
     public List<TimeLabelRule> getEnabledRules() {
+        initializeIfNeeded();
+        
         // 获取启用的分组ID
         Set<String> enabledGroupIds = groups.stream()
             .filter(RuleGroup::isEnabled)
@@ -139,6 +209,7 @@ public class TimeRuleManager {
      * 获取所有规则
      */
     public List<TimeLabelRule> getAllRules() {
+        initializeIfNeeded();
         return new ArrayList<>(rules);
     }
     
@@ -146,6 +217,7 @@ public class TimeRuleManager {
      * 清除所有规则
      */
     public synchronized void clearAllRules() {
+        initializeIfNeeded();
         rules.clear();
         logger.info("清除所有规则");
         saveRulesToFile();
@@ -155,6 +227,7 @@ public class TimeRuleManager {
      * 清除所有分组（保留默认分组）
      */
     public synchronized void clearAllGroups() {
+        initializeIfNeeded();
         groups.removeIf(group -> !group.getGroupId().equals(RuleGroup.DEFAULT_GROUP_ID));
         logger.info("清除所有非默认分组");
         saveRulesToFile();
@@ -164,6 +237,7 @@ public class TimeRuleManager {
      * 添加规则
      */
     public synchronized boolean addRule(TimeLabelRule rule) {
+        initializeIfNeeded();
         String validationError = rule.validate();
         if (validationError != null) {
             logger.error("规则验证失败: {}", validationError);
@@ -195,6 +269,7 @@ public class TimeRuleManager {
      * 删除规则
      */
     public synchronized boolean removeRule(String ruleId) {
+        initializeIfNeeded();
         boolean removed = rules.removeIf(rule -> rule.getRuleId().equals(ruleId));
         if (removed) {
             logger.info("删除规则: {}", ruleId);
@@ -207,6 +282,7 @@ public class TimeRuleManager {
      * 更新规则
      */
     public synchronized boolean updateRule(TimeLabelRule updatedRule) {
+        initializeIfNeeded();
         String validationError = updatedRule.validate();
         if (validationError != null) {
             logger.error("规则验证失败: {}", validationError);
@@ -230,6 +306,7 @@ public class TimeRuleManager {
      * 检查规则名称是否存在
      */
     public boolean ruleNameExists(String ruleName) {
+        initializeIfNeeded();
         return rules.stream().anyMatch(rule -> rule.getRuleName().equals(ruleName));
     }
     
@@ -237,6 +314,7 @@ public class TimeRuleManager {
      * 检查时间重叠
      */
     private boolean hasTimeOverlap(TimeLabelRule newRule) {
+        initializeIfNeeded();
         return rules.stream()
             .filter(rule -> rule.getGroupId().equals(newRule.getGroupId()))
             .anyMatch(newRule::overlapsWith);
@@ -247,10 +325,12 @@ public class TimeRuleManager {
      */
     
     public List<RuleGroup> getAllGroups() {
+        initializeIfNeeded();
         return new ArrayList<>(groups);
     }
     
     public synchronized boolean addGroup(RuleGroup group) {
+        initializeIfNeeded();
         String validationError = group.validate();
         if (validationError != null) {
             logger.error("分组验证失败: {}", validationError);
@@ -269,6 +349,7 @@ public class TimeRuleManager {
     }
     
     public synchronized boolean removeGroup(String groupId) {
+        initializeIfNeeded();
         // 不能删除默认分组
         if ("default".equals(groupId)) {
             logger.error("不能删除默认分组");
@@ -288,6 +369,7 @@ public class TimeRuleManager {
     }
     
     public boolean groupExists(String groupId) {
+        initializeIfNeeded();
         return groups.stream().anyMatch(group -> group.getGroupId().equals(groupId));
     }
     
@@ -295,6 +377,7 @@ public class TimeRuleManager {
      * 批量启用/禁用分组
      */
     public synchronized void setGroupEnabled(String groupId, boolean enabled) {
+        initializeIfNeeded();
         groups.stream()
             .filter(group -> group.getGroupId().equals(groupId))
             .findFirst()
@@ -309,18 +392,22 @@ public class TimeRuleManager {
      */
     
     public int getTotalRuleCount() {
+        initializeIfNeeded();
         return rules.size();
     }
     
     public int getEnabledRuleCount() {
+        initializeIfNeeded();
         return (int) rules.stream().filter(TimeLabelRule::isEnabled).count();
     }
     
     public int getTotalGroupCount() {
+        initializeIfNeeded();
         return groups.size();
     }
     
     public int getEnabledGroupCount() {
+        initializeIfNeeded();
         return (int) groups.stream().filter(RuleGroup::isEnabled).count();
     }
     
@@ -330,28 +417,27 @@ public class TimeRuleManager {
     
     @SuppressWarnings("unchecked")
     public synchronized void loadRulesFromFile() {
-        // 调试信息（已注释）
-        // System.err.println("[DEBUG] getConfigDir(): " + getConfigDir());
-        // System.err.println("[DEBUG] getRulesFile(): " + getRulesFile());
-        // System.err.println("[DEBUG] user.home: " + System.getProperty("user.home"));
-        // System.err.println("[DEBUG] Sys.FILE_SEP: " + Sys.FILE_SEP);
+        long startTime = System.currentTimeMillis();
+        logger.debug("开始加载规则文件");
         
         // 确保配置目录存在
+        long dirCheckStart = System.currentTimeMillis();
         try {
             Files.createDirectories(Paths.get(getConfigDir()));
-            logger.debug("配置目录已确保存在: {}", getConfigDir());
+            logger.debug("配置目录已确保存在: {} (耗时 {}ms)", getConfigDir(), System.currentTimeMillis() - dirCheckStart);
         } catch (Exception e) {
             logger.error("创建配置目录失败: {}", getConfigDir(), e);
         }
         
-        logger.debug("加载规则文件: {}", getRulesFile());
+        logger.debug("检查规则文件: {}", getRulesFile());
         File configFile = new File(getRulesFile());
         if (!configFile.exists()) {
-            logger.info("配置文件不存在: {}", getRulesFile());
+            logger.info("配置文件不存在: {} (总耗时 {}ms)", getRulesFile(), System.currentTimeMillis() - startTime);
             return;
         }
         
         // 检查文件权限安全性
+        long securityCheckStart = System.currentTimeMillis();
         if (!FileSecurityUtils.isFileSecure(configFile)) {
             logger.warn("配置文件权限不安全: {}", getRulesFile());
             // 尝试修复权限
@@ -359,7 +445,9 @@ public class TimeRuleManager {
                 logger.info("已修复配置文件权限: {}", getRulesFile());
             }
         }
+        logger.debug("安全检查完成 (耗时 {}ms)", System.currentTimeMillis() - securityCheckStart);
         
+        long jsonLoadStart = System.currentTimeMillis();
         try (Reader reader = new InputStreamReader(
                 new FileInputStream(configFile), StandardCharsets.UTF_8)) {
             
@@ -374,26 +462,28 @@ public class TimeRuleManager {
                     if (loadedGroups != null) {
                         groups.clear();
                         groups.addAll(loadedGroups);
-                        logger.info("加载了 {} 个分组", groups.size());
+                        logger.info("加载了 {} 个分组 (分组加载耗时 {}ms)", groups.size(), System.currentTimeMillis() - jsonLoadStart);
                     }
                 }
                 
                 // 加载规则
+                long ruleLoadStart = System.currentTimeMillis();
                 if (config.containsKey("rules")) {
                     Type ruleListType = new TypeToken<List<TimeLabelRule>>(){}.getType();
                     List<TimeLabelRule> loadedRules = gson.fromJson(gson.toJson(config.get("rules")), ruleListType);
                     if (loadedRules != null) {
                         rules.clear();
                         rules.addAll(loadedRules);
-                        logger.info("加载了 {} 条规则", rules.size());
+                        logger.info("加载了 {} 条规则 (规则加载耗时 {}ms)", rules.size(), System.currentTimeMillis() - ruleLoadStart);
                     }
                 }
             }
             
-            logger.info("配置文件加载成功: {}", getRulesFile());
+            long totalTime = System.currentTimeMillis() - startTime;
+            logger.info("配置文件加载成功: {} (总耗时 {}ms)", getRulesFile(), totalTime);
             
         } catch (Exception e) {
-            logger.error("加载配置文件失败: {}", getRulesFile(), e);
+            logger.error("加载配置文件失败: {} (总耗时 {}ms)", getRulesFile(), System.currentTimeMillis() - startTime, e);
         }
     }
     
