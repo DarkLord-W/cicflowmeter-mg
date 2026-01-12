@@ -45,30 +45,36 @@
   </Appenders>
 
   <Loggers>
-    <!-- 根日志记录器 - CLI模式默认INFO级别 -->
-     <Root level="INFO">
-       <AppenderRef ref="Console"/>
-       <!-- <AppenderRef ref="JsonFile"/> -->
-       <AppenderRef ref="DebugFile" level="DEBUG"/>
-     </Root>
+      <!-- 根日志记录器 - CLI模式默认DEBUG级别 -->
+       <Root level="DEBUG">
+         <AppenderRef ref="Console"/>
+         <!-- <AppenderRef ref="JsonFile"/> -->
+         <AppenderRef ref="DebugFile" level="DEBUG"/>
+       </Root>
 
-     <!-- CICFlowMeter项目日志 -->
-     <Logger name="cic.cs.unb.ca" level="DEBUG" additivity="false">
-       <AppenderRef ref="Console" level="INFO"/>
-       <!-- <AppenderRef ref="JsonFile"/> -->
-       <AppenderRef ref="DebugFile"/>
-     </Logger>
+      <!-- CICFlowMeter项目日志 -->
+      <Logger name="cic.cs.unb.ca" level="DEBUG" additivity="false">
+        <AppenderRef ref="Console" level="DEBUG"/>
+        <!-- <AppenderRef ref="JsonFile"/> -->
+        <AppenderRef ref="DebugFile"/>
+      </Logger>
 
-     <!-- 网络抓包详细日志 -->
-     <Logger name="cic.cs.unb.ca.jnetpcap" level="INFO" additivity="false">
-       <AppenderRef ref="Console" level="INFO"/>
-       <!-- <AppenderRef ref="JsonFile"/> -->
-     </Logger>
+      <!-- 网络抓包详细日志 -->
+      <Logger name="cic.cs.unb.ca.jnetpcap" level="INFO" additivity="false">
+        <AppenderRef ref="Console" level="DEBUG"/>
+        <!-- <AppenderRef ref="JsonFile"/> -->
+      </Logger>
 
-     <!-- HTTP健康检查日志 -->
-     <Logger name="cic.cs.unb.ca.health" level="INFO" additivity="false">
-       <AppenderRef ref="Console" level="INFO"/>
-       <!-- <AppenderRef ref="JsonFile"/> -->
-     </Logger>
+      <!-- API发送任务详细日志 -->
+      <Logger name="cic.cs.unb.ca.jnetpcap.worker.ApiSendTask" level="DEBUG" additivity="false">
+        <AppenderRef ref="Console" level="DEBUG"/>
+        <AppenderRef ref="DebugFile"/>
+      </Logger>
+
+      <!-- HTTP健康检查日志 -->
+      <Logger name="cic.cs.unb.ca.health" level="INFO" additivity="false">
+        <AppenderRef ref="Console" level="INFO"/>
+        <!-- <AppenderRef ref="JsonFile"/> -->
+      </Logger>
   </Loggers>
 </Configuration>

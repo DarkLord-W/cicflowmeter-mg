@@ -17,12 +17,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.UUID;
 
 public class ApiSendTask implements Runnable {
     public static final Logger logger = LoggerFactory.getLogger(ApiSendTask.class);
     
     private static final AtomicInteger TOTAL_SENT = new AtomicInteger(0);
     private static final AtomicInteger TOTAL_FAILED = new AtomicInteger(0);
+    private static final String CLIENT_ID = "cicflowmeter_" + UUID.randomUUID().toString().substring(0, 8);
     
     private String apiUrl;
     private String flowData;
@@ -49,15 +51,44 @@ public class ApiSendTask implements Runnable {
             // 准备JSON请求体（结构化数据）
             Map<String, String> flowFeatures = parseFlowDataToJson(flowHeader, flowData);
             String structuredJson = buildStructuredJson(flowHeader, flowFeatures);
+            logger.info("structuredJson: {}", structuredJson);
+            System.err.println("[DEBUG] structuredJson前200字符: " + structuredJson.substring(0, Math.min(200, structuredJson.length())));
             
-            // 保持向后兼容，同时发送结构化JSON和原始CSV
-            String jsonBody = String.format(
+            // 构建预处理服务期望的格式
+            String innerJson = String.format(
                 "{\"timestamp\":%d,\"structured\":%s,\"csv_header\":\"%s\",\"flow_data\":\"%s\"}",
                 timestamp,
                 structuredJson,
                 escapeJsonString(flowHeader),
                 escapeJsonString(flowData)
             );
+            logger.info("innerJson: {}", innerJson);
+            System.err.println("[DEBUG] innerJson前200字符: " + innerJson.substring(0, Math.min(200, innerJson.length())));
+            
+            // 包装在data字段中，添加client_id
+            String jsonBody = String.format(
+                "{\"client_id\":\"%s\",\"data\":%s}",
+                CLIENT_ID,
+                innerJson
+            );
+            
+            logger.info("Client ID: {}", CLIENT_ID);
+            logger.info("发送JSON: {}", jsonBody);
+            System.err.println("[DEBUG] Client ID: " + CLIENT_ID);
+            System.err.println("[DEBUG] JSON前200字符: " + jsonBody.substring(0, Math.min(200, jsonBody.length())));
+            
+            // 调试：将JSON写入临时文件以便检查
+            try {
+                java.nio.file.Files.write(
+                    java.nio.file.Paths.get("/tmp/api_debug.json"),
+                    jsonBody.getBytes("utf-8")
+                );
+                logger.debug("JSON已写入 /tmp/api_debug.json");
+                System.err.println("[DEBUG] JSON已写入 /tmp/api_debug.json");
+            } catch (Exception e) {
+                logger.debug("无法写入调试文件: {}", e.getMessage());
+                System.err.println("[DEBUG] 无法写入调试文件: " + e.getMessage());
+            }
             
             URL url = new URL(apiUrl);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
