@@ -115,6 +115,17 @@ public class FileSecurityUtils {
             return false;
         }
         
+        // 检查是否在容器中运行（容器内权限设置可能失败）
+        boolean isContainer = System.getenv("CONTAINER") != null || 
+                            System.getenv("CIC_CONTAINER") != null ||
+                            System.getenv("CIC_CONTAINER_MODE") != null ||
+                            System.getProperty("cicflowmeter.container") != null;
+        
+        if (isContainer) {
+            logger.debug("容器环境：跳过目录权限设置（挂载卷权限由外部管理）: {}", dir.getAbsolutePath());
+            return true; // 在容器中返回true表示"跳过"
+        }
+        
         try {
             Path path = dir.toPath();
             
@@ -164,6 +175,12 @@ public class FileSecurityUtils {
             return false;
         }
         
+        // 检查是否在容器中运行
+        boolean isContainer = System.getenv("CONTAINER") != null || 
+                            System.getenv("CIC_CONTAINER") != null ||
+                            System.getenv("CIC_CONTAINER_MODE") != null ||
+                            System.getProperty("cicflowmeter.container") != null;
+        
         try {
             Path path = Paths.get(dirPath);
             File dir = path.toFile();
@@ -172,24 +189,36 @@ public class FileSecurityUtils {
             if (!dir.exists()) {
                 boolean created = dir.mkdirs();
                 if (!created) {
-                    logger.error("创建目录失败: {}", dirPath);
-                    return false;
+                    if (isContainer) {
+                        logger.warn("容器环境：无法创建目录，但继续执行: {}", dirPath);
+                        return true; // 在容器中返回true表示"跳过"
+                    } else {
+                        logger.error("创建目录失败: {}", dirPath);
+                        return false;
+                    }
                 }
                 logger.info("创建配置目录: {}", dirPath);
             }
             
-            // 设置目录权限
-            if (!setSecureDirectoryPermissions(dir)) {
+            // 设置目录权限（在容器中跳过）
+            if (!isContainer && !setSecureDirectoryPermissions(dir)) {
                 logger.warn("无法设置目录权限，但目录已存在: {}", dirPath);
                 return false;
+            } else if (isContainer) {
+                logger.debug("容器环境：跳过目录权限设置: {}", dirPath);
             }
             
             logger.info("安全配置目录已确保: {}", dirPath);
             return true;
             
         } catch (Exception e) {
-            logger.error("确保安全配置目录失败: {}", dirPath, e);
-            return false;
+            if (isContainer) {
+                logger.warn("容器环境：确保配置目录时遇到错误但继续执行: {}", dirPath, e);
+                return true; // 在容器中返回true表示"跳过"
+            } else {
+                logger.error("确保安全配置目录失败: {}", dirPath, e);
+                return false;
+            }
         }
     }
     

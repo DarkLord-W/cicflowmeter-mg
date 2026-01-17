@@ -25,11 +25,15 @@ public class ApiConfigManager {
     private Gson gson;
     
     // 配置文件路径
-    private static String getConfigDir() {
+    public static String getConfigDir() {
+        String envConfigDir = System.getenv("CIC_CONFIG_DIR");
+        if (envConfigDir != null && !envConfigDir.trim().isEmpty()) {
+            return envConfigDir.trim();
+        }
         return System.getProperty("user.home") + Sys.FILE_SEP + ".cicflowmeter";
     }
     
-    private static String getConfigFile() {
+    public static String getConfigFile() {
         return getConfigDir() + Sys.FILE_SEP + "api_config.json";
     }
     
@@ -103,6 +107,38 @@ public class ApiConfigManager {
     private void loadConfigFromFile() {
         String configFile = getConfigFile();
         logger.debug("加载API配置文件: {}", configFile);
+        
+        // 首先检查环境变量（最高优先级）
+        boolean envConfigApplied = false;
+        String envApiUrl = System.getenv("CIC_API_URL");
+        String envApiEnabled = System.getenv("CIC_API_ENABLED");
+        String envCsvEnabled = System.getenv("CIC_CSV_ENABLED");
+        
+        if (envApiUrl != null && !envApiUrl.trim().isEmpty()) {
+            this.apiUrl = envApiUrl.trim();
+            logger.info("从环境变量CIC_API_URL设置API URL: {}", this.apiUrl);
+            envConfigApplied = true;
+        }
+        
+        if (envApiEnabled != null && !envApiEnabled.trim().isEmpty()) {
+            this.apiEnabled = Boolean.parseBoolean(envApiEnabled.trim());
+            logger.info("从环境变量CIC_API_ENABLED设置API发送: {}", this.apiEnabled);
+            envConfigApplied = true;
+        }
+        
+        if (envCsvEnabled != null && !envCsvEnabled.trim().isEmpty()) {
+            this.csvEnabled = Boolean.parseBoolean(envCsvEnabled.trim());
+            logger.info("从环境变量CIC_CSV_ENABLED设置CSV导出: {}", this.csvEnabled);
+            envConfigApplied = true;
+        }
+        
+        // 如果环境变量已设置，跳过文件读取（除非文件不存在时需要创建目录）
+        if (envConfigApplied) {
+            logger.debug("环境变量配置已应用，跳过文件读取");
+            // 但仍需确保配置目录存在
+            FileSecurityUtils.ensureSecureConfigDir(getConfigDir());
+            return;
+        }
         
         // 确保配置目录安全存在
         if (!FileSecurityUtils.ensureSecureConfigDir(getConfigDir())) {
@@ -189,6 +225,14 @@ public class ApiConfigManager {
         csvSavePath = null;
         logger.info("重置为默认配置");
         saveConfigToFile();
+    }
+    
+    /**
+     * 重新加载配置文件（热加载支持）
+     */
+    public synchronized void reloadConfig() {
+        logger.info("重新加载API配置...");
+        loadConfigFromFile();
     }
     
     public String getStatusString() {

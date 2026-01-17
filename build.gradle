@@ -4,7 +4,8 @@ apply plugin: 'application'
 
 // 使用新的构建目录避免权限问题
 // buildDir = new File(projectDir, "build-new")
-buildDir = new File("/tmp/build-cic")
+// buildDir = new File("/tmp/build-cic")
+buildDir = new File(projectDir, "build")
 
 group = 'cic.unb.ca'
 version = '4.1'

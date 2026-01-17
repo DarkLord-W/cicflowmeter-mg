@@ -44,6 +44,10 @@ public class TimeRuleManager {
     
     // 配置文件路径
     private static String getConfigDir() {
+        String envConfigDir = System.getenv("CIC_CONFIG_DIR");
+        if (envConfigDir != null && !envConfigDir.trim().isEmpty()) {
+            return envConfigDir.trim();
+        }
         return System.getProperty("user.home") + Sys.FILE_SEP + ".cicflowmeter";
     }
     
@@ -588,5 +592,27 @@ public class TimeRuleManager {
         return String.format("规则: %d/%d 启用, 分组: %d/%d 启用",
             getEnabledRuleCount(), getTotalRuleCount(),
             getEnabledGroupCount(), getTotalGroupCount());
+    }
+    
+    /**
+     * 重新加载规则文件（热加载支持）
+     */
+    public synchronized void reloadRules() {
+        logger.info("重新加载时间规则配置...");
+        loadRulesFromFile();
+    }
+    
+    /**
+     * 获取配置目录（公共访问）
+     */
+    public static String getConfigDirectory() {
+        return getConfigDir();
+    }
+    
+    /**
+     * 获取规则文件路径（公共访问）
+     */
+    public static String getRulesFilePath() {
+        return getRulesFile();
     }
 }
