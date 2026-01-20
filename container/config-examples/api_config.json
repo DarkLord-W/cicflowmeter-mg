@@ -1,0 +1,8 @@
+{
+  "version": "1.0",
+  "lastModified": 1640995200000,
+  "apiUrl": "http://127.0.0.1:5000/api/v1/process_stream",
+  "apiEnabled": false,
+  "csvEnabled": true,
+  "csvSavePath": null
+}

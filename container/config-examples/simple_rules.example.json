@@ -1,0 +1,37 @@
+{
+  "version": "1.0",
+  "description": "CICFlowMeter时间规则示例配置 - 简化版",
+  "exportTime": 1640995200000,
+  "groups": [
+    {
+      "groupId": "default",
+      "groupName": "默认分组",
+      "description": "系统默认分组",
+      "enabled": true
+    }
+  ],
+  "rules": [
+    {
+      "ruleId": "simple_001",
+      "ruleName": "工作时间",
+      "startDateTime": "2026-01-01 09:00:00",
+      "endDateTime": "2026-01-01 18:00:00",
+      "label": "Normal",
+      "groupId": "default",
+      "enabled": true,
+      "priority": 10,
+      "description": "标准工作时间"
+    },
+    {
+      "ruleId": "simple_002",
+      "ruleName": "非工作时间",
+      "startDateTime": "2026-01-01 18:00:00",
+      "endDateTime": "2026-01-02 09:00:00",
+      "label": "Suspicious",
+      "groupId": "default",
+      "enabled": true,
+      "priority": 20,
+      "description": "夜间时段"
+    }
+  ]
+}

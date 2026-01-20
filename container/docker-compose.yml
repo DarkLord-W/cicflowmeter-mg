@@ -1,0 +1,48 @@
+services:
+  cicflowmeter:
+    build:
+      # The context is the repository root: the Dockerfile compiles the Java
+      # sources, so it needs the whole tree, not just this directory.
+      context: ..
+      dockerfile: container/Dockerfile
+      args:
+        VERSION: "4.1-enhanced"
+    image: ghcr.io/OWNER/cicflowmeter:4.1-enhanced
+    container_name: cicflowmeter
+    restart: unless-stopped
+
+    # Capture needs raw sockets. Drop these two lines and the container will
+    # start but fail on pcap_open_live with a permission error.
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+
+    # Bridge networking plus a published health port is enough for pcap files
+    # mounted into the container. For live capture of a host interface on
+    # Linux, comment the ports block and enable host networking instead.
+    # network_mode: host
+    ports:
+      - "8899:8888"
+
+    volumes:
+      - ./data:/var/lib/cicflowmeter
+      - ./pcaps:/pcaps:ro
+
+    environment:
+      CIC_HEALTH_PORT: "8888"
+      CIC_CONFIG_DIR: /var/lib/cicflowmeter
+      CIC_API_URL: "${CIC_API_URL:-http://127.0.0.1:5000/api/v1/process_stream}"
+      CIC_API_ENABLED: "${CIC_API_ENABLED:-false}"
+      CIC_CSV_ENABLED: "${CIC_CSV_ENABLED:-true}"
+      JAVA_OPTS: "-Xmx1g -Xms256m"
+
+    # Live capture on an interface; for offline work use:
+    #   command: ["analyze", "/pcaps", "/var/lib/cicflowmeter"]
+    command: ["capture", "--interface", "eth0", "--health-check"]
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8888/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
