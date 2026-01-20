@@ -8,8 +8,8 @@ apply plugin: 'application'
 buildDir = new File(projectDir, "build")
 
 group = 'cic.unb.ca'
-version = '4.1'
-description = """CICFlowMeter V4.1 Enhanced"""
+version = '4.1-enhanced'
+description = """CICFlowMeter V4.1 Enhanced (community fork)"""
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
@@ -25,7 +25,11 @@ dependencies {
     compile group: 'org.apache.logging.log4j', name: 'log4j-slf4j-impl', version: '2.17.0'
     // compile group: 'org.apache.logging.log4j', name: 'log4j-layout-template-json', version: '2.17.0'
     compile group: 'commons-cli', name: 'commons-cli', version:'1.5.0'
-    compile group: 'org.jnetpcap', name: 'jnetpcap', version:'1.4.1'
+    // jnetpcap is not published to Maven Central. The jar ships with the
+    // repository (linux and win variants); the Java classes are the same, only
+    // the native library differs, and that is loaded from jnetpcap/<os> at run
+    // time through -Djava.library.path.
+    compile files('jnetpcap/linux/jnetpcap-1.4.r1425/jnetpcap.jar')
     compile group: 'junit', name: 'junit', version:'4.12'
     compile group: 'org.apache.commons', name: 'commons-lang3', version:'3.6'
     compile group: 'org.apache.commons', name: 'commons-math3', version:'3.5'
