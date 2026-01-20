@@ -194,8 +194,10 @@ public class TimeRuleManagerTest {
         String label = manager.getLabelForTimestamp(timestampMicros);
         assertEquals("分组启用时应匹配规则", "BENIGN", label);
         
-        // 禁用分组
-        group.setEnabled(false);
+        // 禁用分组：走公开 API，会同步落盘。
+        // 直接改对象（group.setEnabled(false)）不够——第二次查询前若发生后台重载，
+        // 内存里的分组会被文件内容覆盖回 enabled=true。
+        manager.setGroupEnabled("test-group", false);
         
         // 分组禁用后不应匹配
         label = manager.getLabelForTimestamp(timestampMicros);
