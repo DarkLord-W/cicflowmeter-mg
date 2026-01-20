@@ -827,7 +827,7 @@ public class CLIMain {
         System.out.println("6. 管理配置:");
         System.out.println("   ./cicflowmeter-cli config --list");
         System.out.println("   ./cicflowmeter-cli config --show");
-        System.out.println("   ./cicflowmeter-cli config --set api.url=\"http://192.168.1.100:5000/flows\"");
+        System.out.println("   ./cicflowmeter-cli config --set api.url=\"http://127.0.0.1:5000/flows\"");
         System.out.println("   ./cicflowmeter-cli config --set api.enabled=false");
         System.out.println("   ./cicflowmeter-cli config --set csv.path=\"/var/lib/cicflowmeter/csv/\"");
         System.out.println("   ./cicflowmeter-cli config --get api.url");
@@ -860,7 +860,7 @@ public class CLIMain {
         if (command.equals("config")) {
             System.out.println();
             System.out.println("配置示例:");
-            System.out.println("  设置API URL: --set api.url=\"http://192.168.1.100:5000/flows\"");
+            System.out.println("  设置API URL: --set api.url=\"http://127.0.0.1:5000/flows\"");
             System.out.println("  启用API发送: --set api.enabled=true");
             System.out.println("  禁用API发送: --set api.enabled=false");
             System.out.println("  启用CSV导出: --set csv.enabled=true");
