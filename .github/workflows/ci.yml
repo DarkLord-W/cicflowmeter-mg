@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '8'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/caches
+          key: gradle-${{ runner.os }}-${{ hashFiles('build.gradle', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Build jars
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon clean test fatJarCli fatJarGui fatJarLegacy
+
+      - name: Smoke test jars
+        run: |
+          for app in cli legacy; do
+            jar=$(ls build/libs/cicflowmeter-$app-*.jar | head -1)
+            echo "== $jar"
+            java -jar "$jar" --help > /dev/null
+          done
+
+      - name: Privacy gate
+        run: |
+          ! git grep -nIE "/home/|/Users/|C:\\\\Users" -- . ':!*.md'
+          ! git grep -nIE "sk-[A-Za-z0-9]{16,}|BEGIN [A-Z ]*PRIVATE KEY"
+          ! git grep -nIE "192\\.168\\.|10\\.[0-9]+\\.[0-9]+\\.|172\\.(1[6-9]|2[0-9]|3[01])\\." -- . ':!*.md'
+
+      - name: Build container image
+        run: docker build -f container/Dockerfile -t cicflowmeter:ci .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fat-jars
+          path: build/libs/*.jar
+          if-no-files-found: error
