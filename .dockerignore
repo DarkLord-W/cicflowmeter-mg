@@ -1,0 +1,20 @@
+# Keep the build context small: the Dockerfile only needs sources and build files.
+.git/
+.gradle/
+build/
+dist/
+.dist-stage/
+docs/
+examples/
+packaging/
+scripts/
+container/data/
+container/pcaps/
+*.jar
+*.log
+*.pcap
+*.csv
+
+# ... but the Gradle wrapper and the bundled jnetpcap jars are needed to build.
+!gradle/wrapper/gradle-wrapper.jar
+!jnetpcap/**/*.jar

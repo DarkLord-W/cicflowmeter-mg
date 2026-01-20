@@ -1,0 +1,42 @@
+# Build output
+build/ dist/ .dist-stage/ out/ target/
+
+# Gradle
+.gradle/
+
+# Compiled classes and packaged jars
+*.class
+*.jar
+
+# Logs and runtime output
+logs/
+*.log
+*.log.gz
+**/__pycache__/
+*.pyc
+
+# Editor and OS noise
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Backups left by editors
+*.bak
+*.backup
+*.orig
+*.rej
+
+# Local configuration and captured data
+time_rules.json
+api_config.json
+.env
+*.pcap
+*.pcapng
+*.csv
+
+# Keep what the build and samples actually need
+!gradle/wrapper/gradle-wrapper.jar
+!jnetpcap/**/*.jar
+!src/main/resources/config-examples/**
+!container/config-examples/**
