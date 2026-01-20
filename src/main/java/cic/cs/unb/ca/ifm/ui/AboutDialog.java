@@ -68,7 +68,12 @@ public class AboutDialog {
         baseBox.add(lblCpr);
         baseBox.add(Box.createVerticalStrut(5));
         
-        JLabel lblVersion = new JLabel("Version: 3.0 (增强版)");
+        String implVersion = null;
+        Package pkg = AboutDialog.class.getPackage();
+        if (pkg != null) {
+            implVersion = pkg.getImplementationVersion();
+        }
+        JLabel lblVersion = new JLabel("Version: " + (implVersion != null ? implVersion : "4.1-enhanced"));
         lblVersion.setForeground(Color.GRAY);
         lblVersion.setAlignmentX(Component.CENTER_ALIGNMENT);
         baseBox.add(lblVersion);
