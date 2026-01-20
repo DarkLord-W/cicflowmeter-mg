@@ -19,7 +19,13 @@ import static cic.cs.unb.ca.Sys.FILE_SEP;
 public class Cmd {
 
     public static final Logger logger = LoggerFactory.getLogger(Cmd.class);
-    private static final String VERSION = "4.1";
+    private static final String VERSION = resolveVersion();
+
+    private static String resolveVersion() {
+        Package pkg = Cmd.class.getPackage();
+        String v = (pkg != null) ? pkg.getImplementationVersion() : null;
+        return (v != null) ? v : "4.1-enhanced";
+    }
     private static final String DividingLine = "-------------------------------------------------------------------------------";
     private static String[] animationChars = new String[]{"|", "/", "-", "\\"};
 
