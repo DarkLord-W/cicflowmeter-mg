@@ -30,7 +30,9 @@ the 108 upstream commits, which are kept unchanged.
   tarball and a Windows zip, including the matching jnetpcap native library and
   launcher scripts.
 - **Deployment**: multi-stage `container/Dockerfile`, a single-service
-  `container/docker-compose.yml`, and a systemd unit.
+  `container/docker-compose.yml`, and a systemd unit. The Dockerfile uses
+  fully-qualified base image names so Podman resolves them without a
+  `registries.conf` short-name rule.
 
 ### Changed
 

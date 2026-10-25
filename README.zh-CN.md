@@ -174,8 +174,15 @@ sudo ./bin/cicflowmeter-cli capture --interface eth0 --health-check
 |---|---|
 | ![CLI 离线分析](docs/images/cli-analyze.png) | ![健康检查接口](docs/images/health-endpoint.png) |
 | 一个 pcap 进，一个 CSV 出，附报文统计。 | JSON 状态，含内存与线程计数。 |
+| ![实时抓包](docs/images/gui-live.png) | ![图表面板](docs/images/gui-charts.png) |
+| 实时抓包：表里 37 条流，API 计数在走。 | 保存 CSV 后的图表：协议、源端口、源与目的 IP。 |
 | ![status](docs/images/cli-status.png) | ![about](docs/images/gui-about.png) |
 | 规则与分组计数、API 配置、健康检查状态。 | 上游版权、链接，以及本次构建的版本号。 |
+
+### 容器
+
+![容器镜像](docs/images/podman-container.png)
+*本地用 Podman 构建并运行，带 `NET_RAW` / `NET_ADMIN`；8899 端口上的 `/health` 返回正常。*
 
 ## Docker 与 Podman
 

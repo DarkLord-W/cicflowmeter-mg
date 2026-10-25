@@ -183,8 +183,15 @@ sudo ./bin/cicflowmeter-cli capture --interface eth0 --health-check
 |---|---|
 | ![CLI analyze](docs/images/cli-analyze.png) | ![Health endpoint](docs/images/health-endpoint.png) |
 | One pcap in, one CSV out, with packet statistics. | JSON state plus memory and thread counters. |
+| ![live capture](docs/images/gui-live.png) | ![chart panel](docs/images/gui-charts.png) |
+| Live capture on an interface: 37 flows in the table, API counter moving. | Charts for a saved CSV: protocol, source port, source and destination IP. |
 | ![status](docs/images/cli-status.png) | ![about](docs/images/gui-about.png) |
 | Rule and group counts, API settings, health state. | Upstream copyright, links, and the version this build was cut from. |
+
+### Container
+
+![Container image](docs/images/podman-container.png)
+*Built locally with Podman, run with `NET_RAW` / `NET_ADMIN`; `/health` answered on port 8899.*
 
 ## Docker and Podman
 

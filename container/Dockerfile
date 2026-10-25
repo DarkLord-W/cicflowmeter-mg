@@ -7,7 +7,7 @@
 # jnetpcap native library and the config samples. Nothing is copied in
 # pre-built, so the image always matches the checked-out commit.
 
-FROM eclipse-temurin:8-jdk AS builder
+FROM docker.io/library/eclipse-temurin:8-jdk AS builder
 
 WORKDIR /src
 
@@ -19,7 +19,7 @@ COPY src/ src/
 RUN chmod +x gradlew \
  && ./gradlew --no-daemon fatJarCli fatJarGui fatJarLegacy
 
-FROM eclipse-temurin:8-jre
+FROM docker.io/library/eclipse-temurin:8-jre
 
 ARG VERSION=4.1-enhanced
 
