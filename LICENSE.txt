@@ -16,3 +16,5 @@ Gerard Drapper Gil, Arash Habibi Lashkari, Mohammad Mamun, Ali A. Ghorbani, "Cha
 Arash Habibi Lashkari: Researcher and Developer (Founder)
 Gerard Drapper: Researcher and Developer (Co-funder)
 muhammad saiful islam: Researcher and Developer (Co-funder)
+
+Copyright (c) 2026 CICFlowMeter-MG contributors
