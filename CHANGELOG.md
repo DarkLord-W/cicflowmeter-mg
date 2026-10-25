@@ -58,6 +58,13 @@ the 108 upstream commits, which are kept unchanged.
   missing jnetpcap native library looked like a dead button. Both now show the
   cause in a dialog together with the `java.library.path` / `libpcap.so` hint.
 
+### Changed
+
+- Licence: the fork as a whole is now GPL-3.0 instead of "MIT like upstream".
+  The fat jars bundle Weka (GPL-2.0), jnetpcap (GPL-3 / LGPL-3) and JFreeChart
+  (LGPL-2.1), so a permissive claim over the binaries was not accurate. Upstream's
+  MIT text is preserved verbatim in `LICENSES/MIT-CICFlowMeter.txt`.
+
 ### Notes
 
 - Do not leave `setcap` on the JVM binary used for builds: the loader switches to

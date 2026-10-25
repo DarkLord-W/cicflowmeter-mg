@@ -291,6 +291,7 @@ src/test/java/                  rule manager test
 container/                      Dockerfile, entrypoint, compose file
 packaging/                      package script and systemd unit
 examples/                       API test server, helper scripts
+LICENSES/                       upstream MIT notice, kept verbatim
 docs/                           build, deploy, fork notes, screenshots
 ```
 
@@ -304,8 +305,10 @@ or the Canadian Institute for Cybersecurity.
 - Starting point: CICFlowMeter 4.0. This fork is released as `4.1-enhanced`.
 - The first 108 commits in this repository are upstream's, kept with their
   original authors and messages.
-- Upstream is MIT licensed; this fork keeps the same licence (`LICENSE.txt`,
-  with the fork's copyright line appended).
+- Upstream is MIT licensed. This fork as a whole is distributed under **GPL-3.0**
+  (`LICENSE.txt`), because the shipped jars bundle Weka (GPL-2.0), jnetpcap
+  (GPL-3 / LGPL-3) and JFreeChart (LGPL-2.1). Upstream's MIT notice is preserved
+  verbatim in `LICENSES/MIT-CICFlowMeter.txt`.
 - `MG` is the label carried over from this fork's earlier internal revisions
   (V1–V7); it is not an abbreviation of an upstream project or component.
 

@@ -26,7 +26,7 @@ ARG VERSION=4.1-enhanced
 LABEL org.opencontainers.image.title="CICFlowMeter-MG" \
       org.opencontainers.image.description="Network flow feature extractor (enhanced CICFlowMeter 4.1 fork)" \
       org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.licenses="GPL-3.0-only" \
       org.opencontainers.image.authors="CICFlowMeter-MG Maintainers" \
       org.opencontainers.image.source="https://github.com/DarkLord-W/cicflowmeter-mg"
 

@@ -269,6 +269,7 @@ src/test/java/                   规则管理器测试
 container/                       Dockerfile、入口脚本、compose
 packaging/                       打包脚本与 systemd 单元
 examples/                        API 测试服务、辅助脚本
+LICENSES/                        上游 MIT 声明原文
 docs/                            构建、部署、分支说明、截图
 ```
 
@@ -280,7 +281,9 @@ docs/                            构建、部署、分支说明、截图
   <https://github.com/CanadianInstituteForCybersecurity/CICFlowMeter>
 - 起点版本：CICFlowMeter 4.0；本分支以 `4.1-enhanced` 发布。
 - 本仓库前 108 个提交来自上游，作者与提交信息原样保留。
-- 上游采用 MIT 许可，本分支沿用同一许可（`LICENSE.txt` 末尾追加了本分支的版权行）。
+- 上游采用 MIT 许可；本分支整体以 **GPL-3.0** 分发（`LICENSE.txt`），因为发布的 jar
+  里打包了 Weka（GPL-2.0）、jnetpcap（GPL-3 / LGPL-3）与 JFreeChart（LGPL-2.1）。
+  上游的 MIT 声明原文保留在 `LICENSES/MIT-CICFlowMeter.txt`。
 - `MG` 沿用自本分支早期内部版本线（V1–V7）的命名，不是上游项目或组件的缩写。
 
 CICFlowMeter（前身 ISCXFlowMeter）由加拿大新不伦瑞克大学（UNB）加拿大网络安全研究所

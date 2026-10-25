@@ -10,14 +10,20 @@ Developed at the Canadian Institute for Cybersecurity, University of New Brunswi
   https://github.com/ahlashkari/CICFlowMeter
   https://github.com/CanadianInstituteForCybersecurity/CICFlowMeter
 
+This fork as a whole is licensed under GPL-3.0 (see LICENSE.txt). The reason is
+that the fat jars below bundle Weka (GPL-2.0) and jnetpcap (GPL-3 / LGPL-3), so
+the combined binary is a GPL work. Upstream CICFlowMeter is MIT licensed; its
+notice is preserved verbatim in LICENSES/MIT-CICFlowMeter.txt and applies to the
+upstream-derived parts.
+
 Upstream authors and contributors, as listed in the upstream LICENSE.txt:
   Arash Habibi Lashkari     - researcher and developer (founder)
   Gerard Drapper Gil        - researcher and developer (co-founder)
   Muhammad Saiful Islam     - researcher and developer (co-founder)
 
 The first 108 commits in this repository's history are upstream's work and are
-kept with their original authors. The MIT licence text in LICENSE.txt is
-unmodified; the fork's own copyright line is appended at its end.
+kept with their original authors. Upstream's MIT licence text lives unmodified in
+LICENSES/MIT-CICFlowMeter.txt.
 
 If you use this tool in academic work, cite the upstream papers listed in
 LICENSE.txt / README.md.
@@ -25,24 +31,27 @@ LICENSE.txt / README.md.
 Bundled third-party components
 ------------------------------
 jnetpcap 1.4.r1425 / 1.3.0 (native packet capture bindings, bundled under jnetpcap/)
-  Distributed by the jnetpcap project; see jnetpcap/*/COPYING and RELEASE_NOTES.txt.
+  Dual licensed: GNU GPL v3 (jnetpcap/*/COPYING) or GNU LGPL v3
+  (jnetpcap/*/COPYING.LESSER). Bundled in the fat jars.
 
 Gradle wrapper 4.2 (gradle/wrapper/)
   Apache License 2.0. See https://gradle.org/license/
 
-Build-time dependencies declared in build.gradle (not redistributed here):
+Dependencies declared in build.gradle and bundled into the fat jars:
   Apache Log4j 2.17.0            Apache License 2.0
   Apache Commons CLI/IO/Lang/Math Apache License 2.0
   SLF4J 1.7.x                    MIT
   Gson 2.8.9                     Apache License 2.0
   Guava 23.6-jre                 Apache License 2.0
-  JFreeChart 1.5.0               LGPL 2.1
-  Weka 3.6.14                    GPL 3.0
+  JFreeChart 1.5.0               LGPL 2.1 (project licence)
+  Weka 3.6.14                    GPL 2.0
   Apache Tika 1.17               Apache License 2.0
   JUnit 4.12                     Eclipse Public License 1.0
 
-The fat jars produced by this repository include those dependencies. If you
-redistribute the jars, keep the licence notices of the projects above.
+Because those components are GPL/LGPL, redistributing the fat jars is subject to
+their terms: the source of this repository is the corresponding source for the
+fork's own code, and the components' own notices must be kept. If you need a
+build without GPL code, exclude Weka and rebuild from source.
 
 Trademarks and affiliation
 --------------------------

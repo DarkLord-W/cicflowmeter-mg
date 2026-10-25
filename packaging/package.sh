@@ -76,6 +76,7 @@ stage() {
         cp -a src/main/resources/log4j2-layouts "$dst/config/"
     fi
     cp LICENSE.txt "$dst/"
+    [ -d LICENSES ] && cp -a LICENSES "$dst/"
     [ -f NOTICE ] && cp NOTICE "$dst/"
     [ -f README.md ] && cp README.md "$dst/" || true
     printf 'CSV output of a capture or analysis run lands here.\n' > "$dst/data/README.md"
