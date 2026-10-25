@@ -57,6 +57,9 @@ the 108 upstream commits, which are kept unchanged.
 
 ### Notes
 
+- Do not leave `setcap` on the JVM binary used for builds: the loader switches to
+  secure mode and some JDK builds lose `libjli.so`. Run capture with `sudo`, or
+  remove the capability before building (`sudo setcap -r <java>`).
 - Command-line output is in Chinese. Localisation is tracked separately.
 - The build still uses Gradle 4.2 and the `compile` configuration.
 - The chart view is reachable from the capture panel: save the flow table as CSV,

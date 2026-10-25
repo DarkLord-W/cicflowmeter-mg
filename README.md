@@ -244,11 +244,12 @@ set `java.library.path`), and install the libpcap development package so the
 **`Unsupported class file major version`** — Gradle 4.2 is running on a JDK newer
 than 8. Point `JAVA_HOME` at JDK 8.
 
-**Capture fails with a permission error** — grant raw sockets:
-
-```bash
-sudo setcap cap_net_raw,cap_net_admin=eip "$(readlink -f "$(which java)")"
-```
+**Capture fails with a permission error** — run with `sudo`, or grant raw
+sockets to a JVM that still starts. Setting file capabilities on the JVM binary
+directly is fragile: the dynamic loader then runs in secure mode and some JDK
+builds can no longer find `libjli.so`. If that happens, check with
+`java -version` and remove the capability with `sudo setcap -r <path-to-java>`
+instead of leaving a broken interpreter behind.
 
 **The GUI does not start on a server** — it needs an X display; use
 `xvfb-run` or run the CLI instead.

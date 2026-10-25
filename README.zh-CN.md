@@ -231,11 +231,10 @@ sudo systemctl daemon-reload && sudo systemctl enable --now cicflowmeter
 **报 `Unsupported class file major version`** —— Gradle 4.2 跑在比 8 新的 JDK 上。
 把 `JAVA_HOME` 指到 JDK 8。
 
-**抓包报权限错误** —— 给 JVM 原始套接字能力：
-
-```bash
-sudo setcap cap_net_raw,cap_net_admin=eip "$(readlink -f "$(which java)")"
-```
+**抓包报权限错误** —— 用 `sudo` 运行，或者给一个"打上能力后仍能启动"的 JVM 授权。
+直接对 JVM 二进制做 `setcap` 有副作用：动态加载器会进入 secure 模式，部分 JDK
+构建会因此找不到 `libjli.so`。遇到这种情况先用 `java -version` 验证，再
+`sudo setcap -r <java 路径>` 撤掉，别留下一个起不来的解释器。
 
 **服务器上没有图形界面** —— 界面需要 X；用 `xvfb-run`，或者直接用命令行。
 

@@ -34,7 +34,13 @@ does not set `User=` for capture use) or grant them to the JVM binary:
 
 ```bash
 sudo setcap cap_net_raw,cap_net_admin=eip /usr/lib/jvm/*/bin/java
+java -version   # must still work
 ```
+
+Setting capabilities on a JVM binary puts the dynamic loader into secure mode.
+Some JDK builds then fail to locate `libjli.so`; if `java -version` breaks,
+remove the capability again with `sudo setcap -r <path-to-java>` and run with
+`sudo` instead.
 
 The unit sets `MemoryLimit=2G`, `CPUQuota=200%`, `ProtectSystem=strict` and
 `ReadWritePaths=/var/lib/cicflowmeter /var/log/cicflowmeter`. Adjust the
