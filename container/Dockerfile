@@ -48,6 +48,12 @@ COPY src/main/resources/log4j2-layouts/ /etc/cicflowmeter/log4j2-layouts/
 COPY src/main/resources/config-examples/ /etc/cicflowmeter/config-examples/
 COPY container/entrypoint.sh /usr/local/bin/entrypoint.sh
 
+# Licence texts travel with the image: GPL-3.0 for the fork, MIT for the
+# upstream parts, NOTICE for the bundled components.
+RUN mkdir -p /usr/share/licenses/cicflowmeter
+COPY LICENSE.txt NOTICE /usr/share/licenses/cicflowmeter/
+COPY LICENSES/ /usr/share/licenses/cicflowmeter/LICENSES/
+
 RUN chmod 755 /usr/local/bin/entrypoint.sh
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
