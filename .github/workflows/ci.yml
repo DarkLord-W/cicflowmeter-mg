@@ -43,7 +43,7 @@ jobs:
 
       - name: Privacy gate
         run: |
-          ! git grep -nIE "/home/|/Users/|C:\\\\Users" -- . ':!*.md'
+          ! git grep -nIE "/home/|/Users/|C:\\\\Users" -- . ':!*.md' ':!.github/'
           ! git grep -nIE "sk-[A-Za-z0-9]{16,}|BEGIN [A-Z ]*PRIVATE KEY"
           ! git grep -nIE "192\\.168\\.|10\\.[0-9]+\\.[0-9]+\\.|172\\.(1[6-9]|2[0-9]|3[01])\\." -- . ':!*.md'
 
