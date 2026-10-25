@@ -1,3 +1,29 @@
+Licence of this repository
+--------------------------
+
+CICFlowMeter-MG — an unofficial fork of CICFlowMeter
+
+Copyright (c) 2026 CICFlowMeter-MG contributors
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see <https://www.gnu.org/licenses/>.
+
+Parts of this repository come from CICFlowMeter, which is distributed under the
+MIT licence. That licence text is kept verbatim in
+LICENSES/MIT-CICFlowMeter.txt and its copyright notice applies to those parts.
+Bundled third-party components carry their own licences; see NOTICE.
+
+The canonical licence text is in LICENSE.txt (GNU GPL v3).
+
 CICFlowMeter-MG
 ===============
 
