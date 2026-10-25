@@ -174,8 +174,6 @@ sudo ./bin/cicflowmeter-cli capture --interface eth0 --health-check
 |---|---|
 | ![CLI 离线分析](docs/images/cli-analyze.png) | ![健康检查接口](docs/images/health-endpoint.png) |
 | 一个 pcap 进，一个 CSV 出，附报文统计。 | JSON 状态，含内存与线程计数。 |
-| 状态输出 | 关于对话框 |
-|---|---|
 | ![status](docs/images/cli-status.png) | ![about](docs/images/gui-about.png) |
 | 规则与分组计数、API 配置、健康检查状态。 | 上游版权、链接，以及本次构建的版本号。 |
 

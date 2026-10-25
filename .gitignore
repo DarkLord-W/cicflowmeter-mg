@@ -1,5 +1,9 @@
 # Build output
-build/ dist/ .dist-stage/ out/ target/
+build/
+dist/
+.dist-stage/
+out/
+target/
 
 # Gradle
 .gradle/
