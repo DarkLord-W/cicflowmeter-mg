@@ -7,7 +7,7 @@ services:
       dockerfile: container/Dockerfile
       args:
         VERSION: "4.1-enhanced"
-    image: ghcr.io/OWNER/cicflowmeter:4.1-enhanced
+    image: ghcr.io/DarkLord-W/cicflowmeter:4.1-enhanced
     container_name: cicflowmeter
     restart: unless-stopped
 

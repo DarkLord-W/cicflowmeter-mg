@@ -28,7 +28,7 @@ LABEL org.opencontainers.image.title="CICFlowMeter-MG" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.authors="CICFlowMeter-MG Maintainers" \
-      org.opencontainers.image.source="https://github.com/OWNER/cicflowmeter-mg"
+      org.opencontainers.image.source="https://github.com/DarkLord-W/cicflowmeter-mg"
 
 # libpcap for capture, tcpdump for debugging, curl for the health check probe.
 RUN apt-get update \

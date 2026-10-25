@@ -1,6 +1,6 @@
 [Unit]
 Description=CICFlowMeter Network Traffic Analyzer
-Documentation=https://github.com/OWNER/cicflowmeter-mg
+Documentation=https://github.com/DarkLord-W/cicflowmeter-mg
 After=network.target
 Wants=network.target
 

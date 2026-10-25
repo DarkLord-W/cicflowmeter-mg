@@ -1,436 +1,322 @@
-# CICFlowMeter V4.1 增强版
+# CICFlowMeter-MG
 
-[![Java](https://img.shields.io/badge/Java-8%2B-blue.svg)](https://www.java.com/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE.txt)
-[![Version](https://img.shields.io/badge/Version-4.1--enhanced-orange.svg)]()
+CICFlowMeter reads packets, groups them into flows, and writes one row of 85
+features per flow. Upstream ships a Swing interface and a bare command-line
+entry point. This fork keeps both, adds a proper CLI with six subcommands,
+attaches time-window labels to flows, and can stream results to an HTTP endpoint
+while a capture is running. Packaging for Docker, Podman and systemd lives in
+this repository rather than in a separate deployment project.
 
-**CICFlowMeter** 是一个功能强大的网络流量分析工具，能够从实时流量或PCAP文件中提取85个网络流量特征。支持时间规则标签系统、实时API发送、健康检查和企业级部署。
+**English** · [简体中文](README.zh-CN.md)
 
-## ✨ 核心特性
+![The CICFlowMeter-MG interface on startup](docs/images/gui-main.png)
+*The GUI on startup. `NetWork` switches between live capture and offline pcap analysis.*
 
-- ✅ **实时流量监控** - 捕获网络接口数据包并提取特征
-- ✅ **离线PCAP分析** - 分析现有的PCAP文件
-- ✅ **85个流量特征** - 基于CICIDS2017数据集标准
-- ✅ **时间规则标签系统** - 自动为流量打上时间标签
-- ✅ **多运行模式** - GUI界面、命令行接口、服务器部署
-- ✅ **API集成** - 实时发送特征数据到远程API
-- ✅ **健康检查** - 内置健康检查服务器和监控端点
-- ✅ **企业级部署** - 支持Docker、systemd、安全增强
+## What this fork changes
 
-## 🚀 快速开始
+This is not a repackaging. The changes run through the whole path from capture to
+output, and each row below names the file the change lives in so it can be checked
+against the history.
 
-### 系统要求
-- **Java**: OpenJDK 8 或更高版本 (推荐Java 11)
-- **操作系统**: Linux (推荐), macOS, Windows
-- **构建工具**: Gradle 或 Maven (可选，分发版本无需构建)
+| Area | Upstream 4.0 | This fork |
+|---|---|---|
+| Entry points | Swing GUI, legacy `Cmd` | GUI, a six-subcommand CLI, legacy `Cmd` with `--help` / `--version` (`CLIMain.java`, `Cmd.java`) |
+| Flow labelling | none | Time-rule labels: groups, rules, enable/disable, JSON import and export (`TimeRuleManager.java`, `TimeLabelRule.java`, `RuleGroup.java`) |
+| Data output | CSV only | CSV plus live HTTP streaming of each completed flow (`ApiSendTask.java`, `ApiConfigManager.java`) |
+| CSV location | fixed | Configurable output directory, also settable from the GUI (`FlowMgr.setCustomSavePath`) |
+| Observability | none | HTTP health endpoint with `/health` and `/config/status` (`HealthCheckServer.java`) |
+| Runtime status | none | Status bar showing flow count, API send counters and enabled rule count (`FlowMonitorPane.java`) |
+| Configuration | file editing | Two GUI dialogs — API/CSV settings and time rules — plus `config` CLI verbs (`FlowMonitorPane.java`, `CLIMain.java`) |
+| Logging | log4j1, one config | log4j2, separate GUI and CLI configs, custom layouts (`log4j2.xml`, `log4j2-cli.xml`, `log4j2-layouts/`) |
+| File handling | none | Cross-platform permission helper for POSIX and Windows (`FileSecurityUtils.java`) |
+| Build | single distribution | Three fat jars, launcher scripts, native libraries shipped side by side (`build.gradle`) |
+| Packaging | manual | `packaging/package.sh` producing `jars/ lib/native/ bin/ config/` and a tarball |
+| Deployment | none | Multi-stage Dockerfile, compose file, systemd unit, container entrypoint |
 
-### 方式一：使用分发版本 (推荐)
+### Time-rule labels
 
-#### 1. 下载并解压
+Rules live in `time_rules.json` in the config directory and are applied while
+flows are still in memory, so labels end up in the CSV column instead of being
+joined afterwards. Groups separate working hours, off hours and one-off events;
+each group can be switched off without deleting its rules.
+
 ```bash
-# 下载最新分发版本
-wget https://github.com/your-repo/CICFlowMeter/releases/download/v4.1/CICFlowMeter-4.1-enhanced.zip
-unzip CICFlowMeter-4.1-enhanced.zip
-cd CICFlowMeter-4.1-enhanced
+cicflowmeter-cli config --import rules.json
+cicflowmeter-cli config --groups
+cicflowmeter-cli capture -i eth0 --time_label --health-check
 ```
 
-#### 2. 授予网络抓包权限 (Linux/macOS)
-```bash
-sudo setcap cap_net_raw,cap_net_admin=eip $(readlink -f $(which java))
-```
+### Live feature streaming
 
-#### 3. 运行应用程序
-```bash
-# 图形界面 (GUI)
-./bin/cicflowmeter-gui
+Every completed flow can be posted to an HTTP endpoint while capture runs, so a
+downstream detector does not have to poll for CSV files.
 
-# 命令行界面 (CLI) - 实时监控
-sudo ./bin/cicflowmeter-cli capture --interface eth0 --health-check
-
-# 命令行界面 - 离线分析
-./bin/cicflowmeter-cli analyze /path/to/pcaps/ /output/dir/
-```
-
-### 方式二：从源代码构建
-
-#### 1. 克隆项目
-```bash
-git clone https://github.com/your-repo/CICFlowMeter_MG_V3.git
-cd CICFlowMeter_MG_V3
-```
-
-#### 2. 安装jnetpcap本地库
-```bash
-# Linux
-cd jnetpcap/linux/jnetpcap-1.4.r1425
-mvn install:install-file -Dfile=jnetpcap.jar -DgroupId=org.jnetpcap -DartifactId=jnetpcap -Dversion=1.4.1 -Dpackaging=jar
-
-# Windows
-cd jnetpcap/win/jnetpcap-1.4.r1425
-mvn install:install-file -Dfile=jnetpcap.jar -DgroupId=org.jnetpcap -DartifactId=jnetpcap -Dversion=1.4.1 -Dpackaging=jar
-```
-
-#### 3. 构建项目
-```bash
-# 使用Gradle (推荐)
-./gradlew build
-
-# 或使用Maven
-mvn clean package
-```
-
-#### 4. 运行应用程序
-```bash
-# GUI界面
-sudo ./gradlew execute
-
-# CLI界面 - 实时监控
-sudo ./gradlew executeCLI -Pargs="capture --interface eth0 --health-check"
-
-# CLI界面 - 离线分析
-./gradlew executeCLI -Pargs="analyze /path/to/pcaps/ /output/dir/"
-
-# 传统命令行
-./gradlew exeCMD -Pargs="/path/to/pcaps/ /output/dir/"
-```
-
-## 📖 详细使用指南
-
-### 命令行界面 (CLI) 快速参考
-
-#### 实时流量捕获
-```bash
-# 基本实时监控
-sudo ./bin/cicflowmeter-cli capture --interface eth0 --health-check
-
-# 监控特定端口 (HTTP/HTTPS)
-sudo ./bin/cicflowmeter-cli capture --interface eth0 --filter "tcp port 80 or tcp port 443"
-
-# 应用时间规则标签
-sudo ./bin/cicflowmeter-cli capture --interface eth0 --health-check --time_label
-
-# 自定义输出目录
-sudo ./bin/cicflowmeter-cli capture --interface eth0 --output /var/log/cicflowmeter/csv/
-```
-
-#### 离线PCAP分析
-```bash
-# 分析单个PCAP文件
-./bin/cicflowmeter-cli analyze capture.pcap ./output/
-
-# 分析目录下所有PCAP文件
-./bin/cicflowmeter-cli analyze /data/pcaps/ /data/results/
-
-# 使用传统命令行 (相同功能)
-./bin/cicflowmeter-legacy /data/pcaps/ /data/results/
-```
-
-#### 系统管理
-```bash
-# 查看系统状态
-./bin/cicflowmeter-cli status
-
-# 管理配置
-./bin/cicflowmeter-cli config --list
-./bin/cicflowmeter-cli config --export backup.json
-./bin/cicflowmeter-cli config --import config.json
-
-# 健康检查服务器
-./bin/cicflowmeter-cli health --start --port 8888
-curl http://localhost:8888/health
-```
-
-### 配置文件说明
-
-#### 时间规则配置文件
-位置: `~/.cicflowmeter/time_rules.json`
-
-**示例配置:**
 ```json
 {
-  "rules": [
-    {
-      "ruleId": "uuid-here",
-      "ruleName": "办公时间流量",
-      "startDateTime": "2026-01-11 09:00:00",
-      "endDateTime": "2026-01-11 18:00:00",
-      "label": "BENIGN",
-      "groupId": "default",
-      "enabled": true,
-      "priority": 10
-    }
-  ],
-  "groups": [
-    {
-      "groupId": "default",
-      "groupName": "默认分组",
-      "description": "未指定分组的规则",
-      "enabled": true
-    }
-  ]
+  "apiUrl": "http://127.0.0.1:5000/api/v1/process_stream",
+  "apiEnabled": false,
+  "csvEnabled": true,
+  "csvSavePath": null
 }
 ```
 
-#### 预定义标签 (15个)
-```
-BENIGN
-FTP-Patator
-SSH-Patator
-DoS slowloris
-DoS Slowhttptest
-DoS Hulk
-DoS GoldenEye
-Heartbleed
-Web Attack – Brute Force
-Web Attack – XSS
-Web Attack – SQL Injection
-Infiltration
-Bot
-PortScan
-DDoS
+`csvSavePath: null` keeps the default output directory. With `apiEnabled` off the
+capture path is untouched and nothing is sent. Both are editable from
+`API设置` in the capture panel or from `cicflowmeter-cli config --set`.
+
+### Health endpoint
+
+```console
+$ curl -s localhost:8888/health
+{
+  "status": "UP",
+  "version": "4.1-enhanced",
+  "service": "CICFlowMeter",
+  "system": { "uptime": 4445, "memory": { "heapUsedMB": 25 } }
+}
 ```
 
-**无匹配时默认标签:** `NeedManualLabel`
+`/config/status` reports the resolved configuration directory and the API/CSV
+flags. The root path is a small HTML index linking to both.
 
-### API集成
+### Command line
 
-#### 默认API配置
-- **API URL**: `http://127.0.0.1:5000/flows`
-- **启用状态**: 默认启用
-- **数据格式**: JSON (包含结构化数据和原始CSV)
+| Subcommand | Purpose |
+|---|---|
+| `capture` | Live capture on an interface, optional health server and API streaming |
+| `analyze` | Offline analysis of a pcap file or directory |
+| `config` | Inspect and change settings, import/export time rules, manage groups |
+| `status` | Rule counts, group counts, API settings, health server state |
+| `daemon` | Start and stop background operation |
+| `health` | Start, stop and probe the health endpoint independently |
 
-#### 测试API服务器
+## Requirements
+
+- JDK 8 (the build uses Gradle 4.2, which does not run on newer JDKs)
+- libpcap at runtime; jnetpcap's native library links against `libpcap.so`
+- Linux or Windows. Capture needs raw-socket permission.
+
+## Install
+
+### Release package
+
 ```bash
-# 启动Python测试服务器
-python3 test_api_fixed.py
-
-# 访问Web界面
-# http://127.0.0.1:5000/
+tar xzf cicflowmeter-4.1-enhanced-standalone-linux-x86_64.tar.gz -C /opt/cicflowmeter
+/opt/cicflowmeter/bin/cicflowmeter-cli status
 ```
 
-## 🐳 Docker 部署
+The Windows zip has the same layout with `.bat` launchers and the `.dll` native
+library.
 
-### 快速启动
+### Container image
+
 ```bash
-# 使用预构建镜像
-docker run -d \
-  --name cicflowmeter \
-  --network host \
-  --cap-add=NET_RAW --cap-add=NET_ADMIN \
-  -v /var/lib/cicflowmeter:/var/lib/cicflowmeter \
-  cicflowmeter:4.1 \
+docker run --rm --cap-add=NET_RAW --cap-add=NET_ADMIN \
+  -p 8899:8888 -v "$PWD/data:/var/lib/cicflowmeter" \
+  ghcr.io/DarkLord-W/cicflowmeter:4.1-enhanced \
   capture --interface eth0 --health-check
 ```
 
-### Docker Compose
-```yaml
-version: '3.8'
-services:
-  cicflowmeter:
-    image: cicflowmeter:4.1
-    network_mode: host
-    cap_add:
-      - NET_RAW
-      - NET_ADMIN
-    volumes:
-      - cicflowmeter-data:/var/lib/cicflowmeter
-    command: capture --interface eth0 --health-check --health-port 8888
-    restart: unless-stopped
-```
+### From source
 
-## 🏗️ 系统服务部署 (Linux)
-
-### systemd服务安装
 ```bash
-# 1. 复制服务文件
-sudo cp config/systemd/cicflowmeter.service /etc/systemd/system/
-
-# 2. 重新加载配置
-sudo systemctl daemon-reload
-
-# 3. 启用并启动服务
-sudo systemctl enable cicflowmeter
-sudo systemctl start cicflowmeter
-
-# 4. 查看状态
-sudo systemctl status cicflowmeter
-
-# 5. 查看日志
-sudo journalctl -u cicflowmeter -f
+git clone https://github.com/DarkLord-W/cicflowmeter-mg.git
+cd cicflowmeter-mg
+export JAVA_HOME=/path/to/jdk8
+./gradlew --no-daemon clean test fatJarCli fatJarGui fatJarLegacy
 ```
 
-## 🔧 故障排除
+Three jars land in `build/libs`. See [docs/BUILD.md](docs/BUILD.md) for the
+longer version, including packaging and troubleshooting.
 
-### 常见问题
+## Running
 
-#### 1. 网络抓包权限不足
+### GUI
+
 ```bash
-# 解决方案: 授予Java网络权限
-sudo setcap cap_net_raw,cap_net_admin=eip $(readlink -f $(which java))
-
-# 或临时使用sudo
-sudo ./bin/cicflowmeter-cli capture --interface eth0
+./bin/cicflowmeter-gui
 ```
 
-#### 2. 端口冲突 (健康检查服务器)
+The capture panel lists interfaces (`Load`), starts and stops capture
+(`Start` / `Stop`), and writes the flow table to CSV (`Save as`). Charts are
+reachable after a save: press `Graphs` to open the visual panel for the file you
+just wrote. `API设置` and `时间规则设置` open the two configuration dialogs.
+
+### CLI
+
 ```bash
-# 使用不同端口
-./bin/cicflowmeter-cli capture --interface eth0 --health-check --health-port 8889
+sudo ./bin/cicflowmeter-cli capture --interface eth0 --health-check
+./bin/cicflowmeter-cli analyze /pcaps /out
+./bin/cicflowmeter-cli capture --help
 ```
 
-#### 3. 配置文件权限错误
+### Legacy command line
+
 ```bash
-chmod 600 ~/.cicflowmeter/*.json
-chmod 700 ~/.cicflowmeter
+./bin/cicflowmeter-legacy /pcaps /out
+./bin/cicflowmeter-legacy --version
 ```
 
-#### 4. Java版本问题
+## Screens
+
+| Live capture panel | Time-rule editor |
+|---|---|
+| ![Capture panel](docs/images/gui-main.png) | ![Time rule dialog](docs/images/gui-time-rules.png) |
+| Interfaces on the left, flow table in the middle, counters along the bottom. | Rules in a table, editor below; groups can be toggled without deleting rules. |
+
+| API and CSV settings | Offline analysis |
+|---|---|
+| ![API settings dialog](docs/images/gui-api-settings.png) | ![Offline panel](docs/images/gui-offline.png) |
+| Where captured features are posted and where CSVs land. | Point at a pcap directory, set the two timeouts, press OK. |
+
+| Analysis result | Menu |
+|---|---|
+| ![Offline run finished](docs/images/gui-offline-run.png) | ![NetWork menu](docs/images/gui-network-menu.png) |
+| Flow and packet counters for the completed file. | The two working modes are one menu away. |
+
+| CLI overview | `capture` options |
+|---|---|
+| ![CLI help](docs/images/cli-help.png) | ![Capture help](docs/images/cli-capture-help.png) |
+| Six subcommands, each with its own help. | Interface, BPF filter, timeouts, health check, API/CSV switches. |
+
+| Offline analysis from the CLI | Health endpoint |
+|---|---|
+| ![CLI analyze](docs/images/cli-analyze.png) | ![Health endpoint](docs/images/health-endpoint.png) |
+| One pcap in, one CSV out, with packet statistics. | JSON state plus memory and thread counters. |
+
+## Docker and Podman
+
 ```bash
-# 检查Java版本
-java -version
-
-# 安装Java 11 (Ubuntu/Debian)
-sudo apt update
-sudo apt install openjdk-11-jdk
+docker build -f container/Dockerfile -t cicflowmeter:4.1-enhanced .
+docker compose -f container/docker-compose.yml up -d
+curl -s localhost:8899/health
 ```
 
-#### 5. API配置问题
+The image compiles the jars in a builder stage and copies only jars, the
+`libjnetpcap.so` native library, config samples and the entrypoint into the
+runtime stage. The first argument selects the jar: `cli` (default), `gui` or
+`legacy`. Details in [container/README.md](container/README.md).
+
+`NET_RAW` and `NET_ADMIN` are required for capture. Without them the container
+starts and then fails when libpcap opens the interface.
+
+## systemd
+
 ```bash
-# 查看当前API配置
-./bin/cicflowmeter-cli config --list
-
-# 设置API端点
-./bin/cicflowmeter-cli config --set api.url="http://your-server:5000/predict"
-
-# 禁用API发送（仅本地分析）
-./bin/cicflowmeter-cli config --set api.enabled=false
-
-# 设置自定义CSV保存路径
-./bin/cicflowmeter-cli config --set csv.path="/var/lib/cicflowmeter/csv/"
-
-# 重置为默认配置
-./bin/cicflowmeter-cli config --reset
+sudo install -d /usr/share/cicflowmeter /var/lib/cicflowmeter /etc/cicflowmeter
+sudo tar xzf cicflowmeter-4.1-enhanced-standalone-linux-x86_64.tar.gz -C /usr/share/cicflowmeter
+sudo cp /usr/share/cicflowmeter/config/log4j2.xml /etc/cicflowmeter/
+sudo cp packaging/systemd/cicflowmeter.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now cicflowmeter
 ```
 
-**常见API配置错误:**
-- **API连接失败**: 检查API服务器是否运行，网络是否可达
-- **配置未保存**: 确保 `~/.cicflowmeter/` 目录有写权限
-- **配置格式错误**: 使用 `config --reset` 重置，然后重新配置
-- **URL包含引号**: 避免在URL周围使用引号，如 `http://example.com` 而不是 `"http://example.com"`
+See [docs/DEPLOY.md](docs/DEPLOY.md) for capabilities, resource limits and log
+locations.
 
-### 日志位置
-- **应用程序日志**: `logs/cicflowmeter.log` (分发版本)
-- **详细日志**: `logs/debug.log` (启用DEBUG级别时)
-- **系统日志**: `journalctl -u cicflowmeter` (systemd服务)
+## Configuration
 
-## 📁 项目结构
+The config directory is resolved in this order:
 
-```
-CICFlowMeter_MG_V3/
-├── src/                    # 源代码
-├── dist/                   # 分发版本 (预构建)
-│   ├── bin/               # 启动脚本
-│   ├── config/            # 配置文件
-│   ├── jars/              # 可执行JAR
-│   └── lib/               # 依赖库
-├── jnetpcap/              # jnetpcap本地库
-├── data/                  # 示例数据
-├── logs/                  # 日志目录
-├── build.gradle           # Gradle构建配置
-├── pom.xml                # Maven配置
-├── CICFlowMeter_FULL_TUTORIAL.md  # 完整教程
-├── TEST_API_ENHANCED_TUTORIAL.md  # API测试教程
-├── SERVER_DEPLOYMENT.md   # 服务器部署指南
-├── AGENTS.md              # AI代理指南
-└── test_api*.py           # API测试脚本
-```
+1. `-Dcicflowmeter.config.dir=...`
+2. `CIC_CONFIG_DIR` environment variable
+3. `~/.cicflowmeter`
 
-## 📚 详细文档
+It holds `time_rules.json` (labels) and `api_config.json` (streaming endpoint).
+The health port comes from `CIC_HEALTH_PORT` or `-Dcicflowmeter.health.port`
+(default 8888).
 
-| 文档 | 描述 | 链接 |
-|------|------|------|
-| **完整教程** | 详细功能说明和使用指南 | [CICFlowMeter_FULL_TUTORIAL.md](CICFlowMeter_FULL_TUTORIAL.md) |
-| **API测试教程** | API集成和测试指南 | [TEST_API_ENHANCED_TUTORIAL.md](TEST_API_ENHANCED_TUTORIAL.md) |
-| **服务器部署** | 生产环境部署指南 | [SERVER_DEPLOYMENT.md](SERVER_DEPLOYMENT.md) |
-| **分发版本指南** | 预构建版本使用说明 | [dist/README.md](dist/README.md) |
-| **AI代理指南** | 开发者和AI助手指南 | [AGENTS.md](AGENTS.md) |
+## Troubleshooting
 
-## 🛠️ 开发与贡献
+**`Failed to load library jnetpcap` / `dlopen` error** — the JVM cannot find the
+native library or its `libpcap.so` dependency. Use the packaged launchers (they
+set `java.library.path`), and install the libpcap development package so the
+`libpcap.so` symlink exists.
 
-### 构建自定义版本
+**`Unsupported class file major version`** — Gradle 4.2 is running on a JDK newer
+than 8. Point `JAVA_HOME` at JDK 8.
+
+**Capture fails with a permission error** — grant raw sockets:
+
 ```bash
-# 构建所有JAR文件
-./gradlew fatJar
-
-# 构建特定版本
-./gradlew fatJarCli    # CLI版本
-./gradlew fatJarGui    # GUI版本
-./gradlew fatJarLegacy # 传统命令行版本
-
-# 创建分发包
-./gradlew distZip
+sudo setcap cap_net_raw,cap_net_admin=eip "$(readlink -f "$(which java)")"
 ```
 
-### 运行测试
+**The GUI does not start on a server** — it needs an X display; use
+`xvfb-run` or run the CLI instead.
+
+## Known limitations
+
+- Command-line messages, including help text and log lines, are in Chinese.
+  An English locale is future work.
+- Only x86-64 native libraries are bundled; on arm64 the capture path has no
+  working `libjnetpcap.so`.
+- The GUI needs an X display. There is no headless GUI mode.
+- Charts open from the capture panel after saving the flow table; the
+  `Action → Visual` menu entry exists in the source but is commented out.
+- The container image is built and exercised in CI; the source build and the CLI
+  documented here were run on Linux x86-64 only.
+
+## Build and test
+
 ```bash
-# 运行所有测试
-./gradlew test
-
-# 运行特定测试类
-./gradlew test --tests cic.cs.unb.ca.TimeRuleManagerTest
-
-# 运行特定测试方法
-./gradlew test --tests *TimeRuleManagerTest.testSingleton
+./gradlew test                             # TimeRuleManagerTest
+./gradlew fatJarCli fatJarGui fatJarLegacy  # three runnable jars
+bash packaging/package.sh                  # Linux tarball + Windows zip + checksums
+docker build -f container/Dockerfile .     # image
 ```
 
-### 代码规范
-- **Java版本**: Java 8 兼容
-- **命名规范**: 类用PascalCase，方法/变量用camelCase
-- **包结构**: `cic.cs.unb.ca.xxx`
-- **缩进**: 4空格，无Tab
+## Project layout
 
-## 📞 支持与反馈
-
-### 问题报告
-1. 查看相关日志文件获取错误信息
-2. 确认配置文件正确无误
-3. 使用最小配置复现问题
-4. 在GitHub Issues中提交问题报告
-
-### 问题报告模板
-```markdown
-## 问题描述
-[简要描述问题]
-
-## 复现步骤
-1. [步骤1]
-2. [步骤2]
-3. [步骤3]
-
-## 环境信息
-- 操作系统: [如 Ubuntu 20.04]
-- Java版本: [java -version 输出]
-- CICFlowMeter版本: [./bin/cicflowmeter-cli --version]
-
-## 相关日志
-[日志内容]
+```
+src/main/java/cic/cs/unb/ca/     capture, flow handling, labels, API, CLI, health
+src/main/resources/             log4j2 configs, config samples, systemd unit
+src/test/java/                  rule manager test
+container/                      Dockerfile, entrypoint, compose file
+packaging/                      package script and systemd unit
+examples/                       API test server, helper scripts
+docs/                           build, deploy, fork notes, screenshots
 ```
 
-## 📄 许可证
+## Upstream, credits and license
 
-本项目基于 MIT 许可证开源 - 查看 [LICENSE.txt](LICENSE.txt) 文件了解详情。
+This is an **unofficial fork**, not a release of the University of New Brunswick
+or the Canadian Institute for Cybersecurity.
 
-## 🙏 致谢
+- Upstream: <https://github.com/ahlashkari/CICFlowMeter>,
+  <https://github.com/CanadianInstituteForCybersecurity/CICFlowMeter>
+- Starting point: CICFlowMeter 4.0. This fork is released as `4.1-enhanced`.
+- The first 108 commits in this repository are upstream's, kept with their
+  original authors and messages.
+- Upstream is MIT licensed; this fork keeps the same licence (`LICENSE.txt`,
+  with the fork's copyright line appended).
+- `MG` is the label carried over from this fork's earlier internal revisions
+  (V1–V7); it is not an abbreviation of an upstream project or component.
 
-- 基于原始 CICFlowMeter 项目
-- 使用 jnetpcap 进行网络抓包
-- 包含 CICIDS2017 数据集特征定义
-- 感谢所有贡献者和用户
+CICFlowMeter (formerly ISCXFlowMeter) was built at the Canadian Institute for
+Cybersecurity, University of New Brunswick. Thanks to the original authors and
+contributors:
 
----
+- **Arash Habibi Lashkari** — researcher and developer (founder)
+- **Gerard Drapper Gil** — researcher and developer (co-founder)
+- **Muhammad Saiful Islam** — researcher and developer (co-founder)
 
-**版本**: V4.1 增强版  
-**最后更新**: 2026年1月11日  
-**文档版本**: 2.0  
+and to the CIC team for the CICIDS2017 datasets; the 85-feature set extracted
+here follows their specification.
 
-> 提示: 本文档会随项目更新而更新。最新版本请查看项目仓库。
+If you use this tool in academic work, cite the upstream papers:
+
+- Arash Habibi Lashkari, Gerard Draper-Gil, Mohammad Saiful Islam Mamun and
+  Ali A. Ghorbani, "Characterization of Tor Traffic Using Time Based Features",
+  ICISSP 2017, Porto, Portugal.
+- Gerard Drapper Gil, Arash Habibi Lashkari, Mohammad Mamun, Ali A. Ghorbani,
+  "Characterization of Encrypted and VPN Traffic Using Time-Related Features",
+  ICISSP 2016, Rome, Italy, pp. 407–414.
+
+Issues and pull requests belong here, not upstream. Please only capture traffic
+on networks you are authorised to observe.
+
+## Versioning
+
+Releases use `4.1-enhanced` as the version and `v4.1-enhanced` as the tag, with
+`.1`, `.2` suffixes for follow-up releases. The Release workflow refuses to run
+when the tag and `build.gradle` version disagree.
