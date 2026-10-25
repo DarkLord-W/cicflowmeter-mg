@@ -54,6 +54,9 @@ the 108 upstream commits, which are kept unchanged.
 - The bundled container sample `api_config.json` was not valid JSON (missing
   commas); it is now valid and defaults to `apiEnabled: false`.
 - Removed a hard-coded private-network address from the CLI help examples.
+- `Load` and `Start` in the GUI reported failures only at debug level, so a
+  missing jnetpcap native library looked like a dead button. Both now show the
+  cause in a dialog together with the `java.library.path` / `libpcap.so` hint.
 
 ### Notes
 

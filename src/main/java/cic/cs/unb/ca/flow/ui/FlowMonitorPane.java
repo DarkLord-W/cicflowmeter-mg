@@ -336,13 +336,37 @@ public class FlowMonitorPane extends JPanel {
                             lblStatus.validate();
 
                         } catch (InterruptedException | ExecutionException e) {
-                            logger.debug(e.getMessage());
+                            reportTaskFailure(e, "加载网卡列表失败");
                         }
                         break;
                 }
             }
         });
         task.execute();
+    }
+
+
+    /**
+     * 把后台任务的失败显式报到界面上。之前这里只写 debug 日志，
+     * 用户点 Load / Start 时看到的就是"没反应"。
+     */
+    private void reportTaskFailure(Exception e, String title) {
+        Throwable cause = (e instanceof ExecutionException && e.getCause() != null) ? e.getCause() : e;
+        String detail = cause.getClass().getSimpleName() + ": " + String.valueOf(cause.getMessage());
+        logger.error("{}: {}", title, detail);
+
+        String hint;
+        if (cause instanceof UnsatisfiedLinkError
+                || String.valueOf(cause.getMessage()).contains("jnetpcap")
+                || String.valueOf(cause.getMessage()).contains("dlopen")) {
+            hint = "\n\njnetpcap 原生库没有加载成功。用发行包里的 bin/cicflowmeter-gui 启动，" +
+                   "或显式传入 -Djava.library.path=<jnetpcap 目录>；" +
+                   "另外确认系统里存在 libpcap.so（libpcap-dev 提供）。";
+        } else {
+            hint = "\n\n若需要更多信息，用 -Dlog.level=DEBUG 启动查看日志。";
+        }
+        JOptionPane.showMessageDialog(this, title + "\n\n" + detail + hint,
+                title, JOptionPane.ERROR_MESSAGE);
     }
 
     private void startTrafficFlow() {
@@ -377,7 +401,7 @@ public class FlowMonitorPane extends JPanel {
                             logger.info("Pcap stop listening");
 
                         }catch (InterruptedException | ExecutionException e) {
-                            logger.debug(e.getMessage());
+                            reportTaskFailure(e, "启动抓包失败");
                         }
                         break;
                 }

@@ -244,6 +244,13 @@ set `java.library.path`), and install the libpcap development package so the
 **`Unsupported class file major version`** — Gradle 4.2 is running on a JDK newer
 than 8. Point `JAVA_HOME` at JDK 8.
 
+**`Load` does nothing in the GUI** — the interface list is filled by a jnetpcap
+call. If the native library is missing the action used to fail silently; it now
+opens a dialog with the underlying error. Start the GUI through the packaged
+launcher (`bin/cicflowmeter-gui`), or pass
+`-Djava.library.path=<repo>/jnetpcap/linux/jnetpcap-1.4.r1425` explicitly, and
+make sure `libpcap.so` exists (package `libpcap-dev`).
+
 **Capture fails with a permission error** — run with `sudo`, or grant raw
 sockets to a JVM that still starts. Setting file capabilities on the JVM binary
 directly is fragile: the dynamic loader then runs in secure mode and some JDK

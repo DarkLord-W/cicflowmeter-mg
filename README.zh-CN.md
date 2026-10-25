@@ -231,6 +231,11 @@ sudo systemctl daemon-reload && sudo systemctl enable --now cicflowmeter
 **报 `Unsupported class file major version`** —— Gradle 4.2 跑在比 8 新的 JDK 上。
 把 `JAVA_HOME` 指到 JDK 8。
 
+**界面里点 `Load` 没反应** —— 网卡列表来自 jnetpcap 的原生调用。原生库缺失时
+过去是静默失败，现在会弹窗给出具体错误。用发行包里的 `bin/cicflowmeter-gui`
+启动，或者显式加 `-Djava.library.path=<仓库>/jnetpcap/linux/jnetpcap-1.4.r1425`，
+并确认系统里有 `libpcap.so`（`libpcap-dev` 提供）。
+
 **抓包报权限错误** —— 用 `sudo` 运行，或者给一个"打上能力后仍能启动"的 JVM 授权。
 直接对 JVM 二进制做 `setcap` 有副作用：动态加载器会进入 secure 模式，部分 JDK
 构建会因此找不到 `libjli.so`。遇到这种情况先用 `java -version` 验证，再
